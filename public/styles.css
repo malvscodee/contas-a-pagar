@@ -1,12 +1,13 @@
-/* VARIÁVEIS BASE */
+/* VARIÁVEIS BASE — este módulo é sempre em tema claro, independente do tema do usuário */
 :root {
-    --primary: #CC7000;
+    color-scheme: light;
+    --primary: #52525B;
     --bg-primary: #FFFFFF;
     --bg-secondary: #F8F9FA;
     --bg-card: #FFFFFF;
     --text-primary: #1A1A1A;
     --text-secondary: #6B7280;
-    --border-color: #E5E7EB;
+    --border-color: #EEF0F2;
     --input-bg: #F9FAFB;
     --success-color: #22C55E;
     --warning-color: #F59E0B;
@@ -26,25 +27,6 @@
     --btn-save: #22C55E;
     --btn-pdf: #1E3A8A;
     --alert-color: #EF4444;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-primary: #000000;
-        --bg-secondary: #000000c7;
-        --bg-card: #1A1A1A;
-        --text-primary: #FFFFFF;
-        --text-secondary: #A0A0A0;
-        --border-color: rgba(204, 112, 0, 0.08);
-        --input-bg: #2A2A2A;
-        --table-stripe: #1F1F1F;
-        --card-shadow: none;
-        --th-bg: #4A4A4A;
-        --th-color: #FFFFFF;
-        --th-border: #5A5A5A;
-        --shadow: rgba(0, 0, 0, 0.3);
-        --table-hover: rgba(128, 128, 128, 0.15);
-    }
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
