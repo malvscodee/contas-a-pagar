@@ -1129,78 +1129,8 @@ window.deleteConta = async function(id) {
 };
 
 // ============================================
-// REPETIR CONTA - CORRIGIDO
+// REPETIR CONTA - CORRIGIDO (mensagem sem meses)
 // ============================================
-window.abrirRepetirModal = function(id) {
-    const idStr = String(id);
-    const conta = contas.find(c => String(c.id || c.tempId) === idStr);
-    if (!conta) { showMessage('Conta não encontrada!', 'error'); return; }
-    if (idStr.startsWith('temp_')) { showMessage('Aguarde a sincronização para repetir esta conta.', 'warning'); return; }
-
-    contaParaRepetir = conta;
-    mesesSelecionadosRepetir = new Set();
-    calendarMode = 'repeat';
-    calendarYear = currentMonth.getFullYear();
-
-    // Atualiza o título do modal com a descrição
-    const modalTitle = document.getElementById('calendarModalTitle');
-    if (modalTitle) {
-        modalTitle.innerHTML = `
-            <span style="display: flex; align-items: center; gap: 0.5rem;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="16" y1="2" x2="16" y2="6"/>
-                    <line x1="8" y1="2" x2="8" y2="6"/>
-                    <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                Repetir Conta: <span style="color: #1f2937;">${conta.descricao}</span>
-            </span>
-        `;
-    }
-
-    // Adiciona informações da conta no modal
-    const infoContainer = document.getElementById('contaInfoRepetir');
-    if (infoContainer) {
-        infoContainer.innerHTML = `
-            <div style="background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #e5e7eb; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div>
-                    <span style="font-size: 0.8rem; color: #6b7280;">Descrição</span>
-                    <div style="font-weight: 600; color: #1f2937;">${conta.descricao}</div>
-                </div>
-                <div>
-                    <span style="font-size: 0.8rem; color: #6b7280;">Valor Inicial</span>
-                    <div style="font-weight: 700; color: #166534;">R$ ${parseFloat(conta.valor).toFixed(2)}</div>
-                </div>
-                <div>
-                    <span style="font-size: 0.8rem; color: #6b7280;">Vencimento Original</span>
-                    <div style="font-weight: 600; color: #1f2937;">${formatDate(conta.data_vencimento)}</div>
-                </div>
-                <div>
-                    <span style="font-size: 0.8rem; color: #6b7280;">Status</span>
-                    <div><span class="badge pendente">Pendente</span></div>
-                </div>
-            </div>
-            <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 12px; text-align: center;">
-                Selecione os meses para repetir esta conta
-            </p>
-        `;
-    }
-
-    if (typeof renderCalendar === 'function') renderCalendar();
-    const modal = document.getElementById('calendarModal');
-    const actions = document.getElementById('calendarActions');
-    if (actions) {
-        actions.style.display = 'flex';
-        const confirmBtn = actions.querySelector('.save');
-        if (confirmBtn) {
-            confirmBtn.style.background = '#3B82F6';
-            confirmBtn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
-            confirmBtn.textContent = 'Repetir Contas';
-        }
-    }
-    if (modal) modal.classList.add('show');
-};
-
 window.confirmarRepeticao = function() {
     if (!contaParaRepetir || mesesSelecionadosRepetir.size === 0) {
         showMessage('Selecione ao menos um mês para repetir.', 'warning');
@@ -1211,13 +1141,11 @@ window.confirmarRepeticao = function() {
     const diaOriginal = new Date(original.data_vencimento + 'T00:00:00').getDate();
     const novasContas = [];
     const novasContasData = [];
-    const mesesSelecionados = [];
 
     mesesSelecionadosRepetir.forEach(key => {
         const [anoStr, mesStr] = key.split('-');
         const ano = parseInt(anoStr);
         const mes = parseInt(mesStr);
-        mesesSelecionados.push(`${meses[mes]} ${ano}`);
         const ultimoDiaMes = new Date(ano, mes + 1, 0).getDate();
         const dia = Math.min(diaOriginal, ultimoDiaMes);
         const dataVenc = new Date(ano, mes, dia);
@@ -1256,9 +1184,8 @@ window.confirmarRepeticao = function() {
     updateDashboard();
     filterContas();
     
-    // Mensagem personalizada
-    const mesesTexto = mesesSelecionados.join(', ');
-    showMessage(`✅ Registrando "${original.descricao}" em ${mesesTexto}`, 'success');
+    // Mensagem sem citar os meses
+    showMessage(`✅ Registrando "${original.descricao}" em outros meses`, 'success');
     
     window.cancelarRepeticao();
 
@@ -1269,7 +1196,6 @@ window.confirmarRepeticao = function() {
         showMessage('Sistema offline. As repetições serão sincronizadas quando voltar online.', 'warning');
     }
 };
-
 window.cancelarRepeticao = function() {
     const modal = document.getElementById('calendarModal');
     if (modal) {
