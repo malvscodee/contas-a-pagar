@@ -85,7 +85,8 @@ async function processSingleItem(item) {
             updateDashboard();
             filterContas();
         } else {
-            throw new Error(`Erro ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Erro ${response.status}`);
         }
     } catch (error) {
         console.error(`❌ Erro ao processar item ${item.tempId}:`, error);
@@ -93,7 +94,7 @@ async function processSingleItem(item) {
         
         if (item.attempts >= processingQueue.retryAttempts) {
             item.status = 'failed';
-            showMessage(`Falha ao salvar conta. Tente novamente.`, 'error');
+            showMessage(`Falha ao salvar conta: ${error.message}`, 'error');
             contas = contas.filter(c => c.tempId !== item.tempId);
             updateDashboard();
             filterContas();
@@ -567,7 +568,7 @@ window.showFormModal = function(editingId = null) {
         observacoesArray = [];
     }
 
-    const tituloModal = isEditing ? (conta?.descricao || 'Editar Conta') : 'Nome da Conta';
+    const tituloModal = isEditing ? (conta?.descricao || 'Editar Conta') : 'Nova Conta';
 
     const modalHTML = `
         <div class="modal-overlay" id="formModal">
@@ -702,8 +703,22 @@ async function salvarContaOtimista() {
     const banco = document.getElementById('banco')?.value;
     const tipoPessoa = document.getElementById('tipo_pessoa')?.value || null;
     const valorPago = document.getElementById('valor_pago')?.value || null;
+    const dataPagamento = document.getElementById('data_pagamento')?.value || null;
     
-    if (!descricao || !valor || !dataVencimento || !formaPagamento || !banco) { showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); return; }
+    if (!descricao || !valor || !dataVencimento || !formaPagamento || !banco) { 
+        showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); 
+        return; 
+    }
+    
+    // Determinar status baseado na data de pagamento
+    let status = 'PENDENTE';
+    if (dataPagamento) {
+        status = 'PAGO';
+        if (!valorPago || parseFloat(valorPago) <= 0) {
+            showMessage('Para confirmar pagamento, informe o valor pago (maior que zero).', 'error');
+            return;
+        }
+    }
     
     const formData = {
         descricao: descricao,
@@ -712,15 +727,15 @@ async function salvarContaOtimista() {
         forma_pagamento: formaPagamento,
         banco: banco,
         tipo_pessoa: tipoPessoa,
-        data_pagamento: document.getElementById('data_pagamento')?.value || null,
+        data_pagamento: dataPagamento,
         valor_pago: valorPago ? parseFloat(valorPago) : null,
         observacoes: document.getElementById('observacoesData')?.value || '[]',
-        status: document.getElementById('data_pagamento')?.value ? 'PAGO' : 'PENDENTE'
+        status: status
     };
-    if (isNaN(formData.valor) || formData.valor <= 0) { showMessage('Valor inválido. Digite um número maior que zero.', 'error'); return; }
-    if (formData.status === 'PAGO' && (!formData.valor_pago || formData.valor_pago <= 0)) {
-        showMessage('Para confirmar pagamento, informe o valor pago (maior que zero).', 'error');
-        return;
+    
+    if (isNaN(formData.valor) || formData.valor <= 0) { 
+        showMessage('Valor inválido. Digite um número maior que zero.', 'error'); 
+        return; 
     }
     
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -732,7 +747,12 @@ async function salvarContaOtimista() {
     filterContas();
     window.closeFormModal();
     showMessage('Nova conta registrada localmente', 'success');
-    if (!isOnline) { showMessage('Sistema offline. A conta será sincronizada quando voltar online.', 'warning'); return; }
+    
+    if (!isOnline) { 
+        showMessage('Sistema offline. A conta será sincronizada quando voltar online.', 'warning'); 
+        return; 
+    }
+    
     addToQueue({ tempId: tempId, data: formData });
     processQueue();
 }
@@ -745,8 +765,22 @@ async function editarContaOtimista(editId) {
     const banco = document.getElementById('banco')?.value;
     const tipoPessoa = document.getElementById('tipo_pessoa')?.value || null;
     const valorPago = document.getElementById('valor_pago')?.value || null;
+    const dataPagamento = document.getElementById('data_pagamento')?.value || null;
     
-    if (!descricao || !valor || !dataVencimento || !formaPagamento || !banco) { showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); return; }
+    if (!descricao || !valor || !dataVencimento || !formaPagamento || !banco) { 
+        showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); 
+        return; 
+    }
+    
+    let status = 'PENDENTE';
+    if (dataPagamento) {
+        status = 'PAGO';
+        if (!valorPago || parseFloat(valorPago) <= 0) {
+            showMessage('Para confirmar pagamento, informe o valor pago (maior que zero).', 'error');
+            return;
+        }
+    }
+    
     const formData = {
         descricao: descricao,
         valor: parseFloat(valor),
@@ -754,19 +788,29 @@ async function editarContaOtimista(editId) {
         forma_pagamento: formaPagamento,
         banco: banco,
         tipo_pessoa: tipoPessoa,
-        data_pagamento: document.getElementById('data_pagamento')?.value || null,
+        data_pagamento: dataPagamento,
         valor_pago: valorPago ? parseFloat(valorPago) : null,
-        observacoes: document.getElementById('observacoesData')?.value || '[]'
+        observacoes: document.getElementById('observacoesData')?.value || '[]',
+        status: status
     };
-    if (isNaN(formData.valor) || formData.valor <= 0) { showMessage('Valor inválido. Digite um número maior que zero.', 'error'); return; }
-    const contaOriginal = contas.find(c => String(c.id) === String(editId));
-    if (!contaOriginal) { showMessage('Conta não encontrada!', 'error'); return; }
-    if (formData.data_pagamento && (!formData.valor_pago || formData.valor_pago <= 0)) {
-        showMessage('Para confirmar pagamento, informe o valor pago (maior que zero).', 'error');
-        return;
+    
+    if (isNaN(formData.valor) || formData.valor <= 0) { 
+        showMessage('Valor inválido. Digite um número maior que zero.', 'error'); 
+        return; 
     }
-    if (!formData.data_pagamento) { formData.status = contaOriginal.status; } else { formData.status = 'PAGO'; }
-    if (!isOnline) { showMessage('Sistema offline. Dados não foram salvos.', 'error'); window.closeFormModal(); return; }
+    
+    const contaOriginal = contas.find(c => String(c.id) === String(editId));
+    if (!contaOriginal) { 
+        showMessage('Conta não encontrada!', 'error'); 
+        return; 
+    }
+    
+    if (!isOnline) { 
+        showMessage('Sistema offline. Dados não foram salvos.', 'error'); 
+        window.closeFormModal(); 
+        return; 
+    }
+    
     const backup = { ...contaOriginal };
     const index = contas.findIndex(c => String(c.id) === String(editId));
     contas[index] = { ...contaOriginal, ...formData, synced: false };
@@ -776,17 +820,50 @@ async function editarContaOtimista(editId) {
     filterContas();
     window.closeFormModal();
     showMessage('Registro atualizado', 'success');
+    
     try {
-        const response = await fetch(`${API_URL}/contas/${editId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken, 'Accept': 'application/json' }, body: JSON.stringify(formData), mode: 'cors' });
-        if (tratarErroAutenticacao(response)) { contas[index] = backup; updateDashboard(); filterContas(); return; }
-        if (!response.ok) { let errorMessage = 'Erro ao salvar'; try { const errorData = await response.json(); errorMessage = errorData.error || errorData.message || errorMessage; } catch (e) { errorMessage = `Erro ${response.status}: ${response.statusText}`; } throw new Error(errorMessage); }
+        const response = await fetch(`${API_URL}/contas/${editId}`, { 
+            method: 'PUT', 
+            headers: { 
+                'Content-Type': 'application/json', 
+                'X-Session-Token': sessionToken, 
+                'Accept': 'application/json' 
+            }, 
+            body: JSON.stringify(formData), 
+            mode: 'cors' 
+        });
+        
+        if (tratarErroAutenticacao(response)) { 
+            contas[index] = backup; 
+            updateDashboard(); 
+            filterContas(); 
+            return; 
+        }
+        
+        if (!response.ok) { 
+            let errorMessage = 'Erro ao salvar'; 
+            try { 
+                const errorData = await response.json(); 
+                errorMessage = errorData.error || errorData.message || errorMessage; 
+            } catch (e) { 
+                errorMessage = `Erro ${response.status}: ${response.statusText}`; 
+            } 
+            throw new Error(errorMessage); 
+        }
+        
         const savedData = await response.json();
         contas[index] = savedData;
         lastDataHash = JSON.stringify(contas.map(c => c.id));
         updateAllFilters();
         updateDashboard();
         filterContas();
-    } catch (error) { console.error('Erro ao sincronizar:', error); contas[index] = backup; updateDashboard(); filterContas(); showMessage(`Erro ao sincronizar: ${error.message}`, 'error'); }
+    } catch (error) { 
+        console.error('Erro ao sincronizar:', error); 
+        contas[index] = backup; 
+        updateDashboard(); 
+        filterContas(); 
+        showMessage(`Erro ao sincronizar: ${error.message}`, 'error'); 
+    }
 }
 
 window.closeFormModal = function() {
@@ -827,13 +904,33 @@ window.togglePago = async function(id) {
         showMessage('Pagamento desmarcado!', 'success');
         if (isOnline) {
             try {
-                const response = await fetch(`${API_URL}/contas/${idStr}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken, 'Accept': 'application/json' }, body: JSON.stringify({ status: novoStatus, data_pagamento: null, valor_pago: null }), mode: 'cors' });
+                const response = await fetch(`${API_URL}/contas/${idStr}`, { 
+                    method: 'PATCH', 
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-Session-Token': sessionToken, 
+                        'Accept': 'application/json' 
+                    }, 
+                    body: JSON.stringify({ 
+                        status: novoStatus, 
+                        data_pagamento: null, 
+                        valor_pago: null 
+                    }), 
+                    mode: 'cors' 
+                });
                 if (tratarErroAutenticacao(response)) return;
                 if (!response.ok) throw new Error('Erro ao atualizar');
                 const data = await response.json();
                 const index = contas.findIndex(c => String(c.id) === idStr);
                 if (index !== -1) contas[index] = data;
-            } catch (error) { conta.status = old.status; conta.data_pagamento = old.data; conta.valor_pago = old.valor_pago; updateDashboard(); filterContas(); showMessage('Erro ao atualizar status', 'error'); }
+            } catch (error) { 
+                conta.status = old.status; 
+                conta.data_pagamento = old.data; 
+                conta.valor_pago = old.valor_pago; 
+                updateDashboard(); 
+                filterContas(); 
+                showMessage('Erro ao atualizar status', 'error'); 
+            }
         }
         return;
     }
@@ -892,13 +989,33 @@ window.confirmarPagamentoComValor = async function(idStr) {
     showMessage(`Pagamento confirmado! Valor: R$ ${valorPago.toFixed(2)}`, 'success');
     if (isOnline) {
         try {
-            const response = await fetch(`${API_URL}/contas/${idStr}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken, 'Accept': 'application/json' }, body: JSON.stringify({ status: novoStatus, data_pagamento: novaData, valor_pago: valorPago }), mode: 'cors' });
+            const response = await fetch(`${API_URL}/contas/${idStr}`, { 
+                method: 'PATCH', 
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'X-Session-Token': sessionToken, 
+                    'Accept': 'application/json' 
+                }, 
+                body: JSON.stringify({ 
+                    status: novoStatus, 
+                    data_pagamento: novaData, 
+                    valor_pago: valorPago 
+                }), 
+                mode: 'cors' 
+            });
             if (tratarErroAutenticacao(response)) return;
             if (!response.ok) throw new Error('Erro ao atualizar');
             const data = await response.json();
             const index = contas.findIndex(c => String(c.id) === idStr);
             if (index !== -1) contas[index] = data;
-        } catch (error) { conta.status = old.status; conta.data_pagamento = old.data; conta.valor_pago = old.valor_pago; updateDashboard(); filterContas(); showMessage('Erro ao atualizar status', 'error'); }
+        } catch (error) { 
+            conta.status = old.status; 
+            conta.data_pagamento = old.data; 
+            conta.valor_pago = old.valor_pago; 
+            updateDashboard(); 
+            filterContas(); 
+            showMessage('Erro ao atualizar status', 'error'); 
+        }
     }
 };
 
@@ -938,10 +1055,25 @@ window.deleteConta = async function(id) {
     showMessage('Registro excluído', 'error');
     if (isOnline) {
         try {
-            const response = await fetch(`${API_URL}/contas/${idStr}`, { method: 'DELETE', headers: { 'X-Session-Token': sessionToken, 'Accept': 'application/json' }, mode: 'cors' });
+            const response = await fetch(`${API_URL}/contas/${idStr}`, { 
+                method: 'DELETE', 
+                headers: { 
+                    'X-Session-Token': sessionToken, 
+                    'Accept': 'application/json' 
+                }, 
+                mode: 'cors' 
+            });
             if (tratarErroAutenticacao(response)) return;
             if (!response.ok) throw new Error('Erro ao deletar');
-        } catch (error) { if (deleted) { contas.push(deleted); updateAllFilters(); updateDashboard(); filterContas(); showMessage('Erro ao excluir conta', 'error'); } }
+        } catch (error) { 
+            if (deleted) { 
+                contas.push(deleted); 
+                updateAllFilters(); 
+                updateDashboard(); 
+                filterContas(); 
+                showMessage('Erro ao excluir conta', 'error'); 
+            } 
+        }
     }
 };
 
@@ -1266,7 +1398,6 @@ function renderContas(lista) {
         </thead>
         <tbody>
             ${lista.map(c => { 
-                const syncIndicator = (!c.id && c.tempId) ? '<span style="color:orange;font-size:0.8em;" title="Sincronizando...">⟳</span> ' : ''; 
                 const isPago = c.status === 'PAGO'; 
                 const contaId = c.id || c.tempId;
 
@@ -1293,7 +1424,7 @@ function renderContas(lista) {
 
                 return `<tr data-conta-id="${contaId}" class="${isPago ? 'row-pago' : ''}">
                     <td style="text-align:center;padding:8px;"><button class="check-btn ${isPago ? 'checked' : ''}" data-action="toggle" data-id="${contaId}"></button></td>
-                    <td>${syncIndicator}${c.descricao}</td>
+                    <td>${c.descricao}</td>
                     <td><strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong></td>
                     <td>${c.valor_pago ? 'R$ ' + parseFloat(c.valor_pago).toFixed(2) : '-'}</td>
                     <td style="white-space:nowrap;">${formatDate(c.data_vencimento)}</td>
