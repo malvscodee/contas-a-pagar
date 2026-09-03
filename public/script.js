@@ -59,7 +59,6 @@ async function processQueue() {
 
 async function processSingleItem(item) {
     try {
-        // Remove campos que não devem ser enviados
         const dataToSend = { ...item.data };
         delete dataToSend.tempId;
         delete dataToSend.synced;
@@ -608,6 +607,9 @@ window.showFormModal = function(editingId = null) {
     setTimeout(() => { applyUppercaseFields(); }, 100);
 };
 
+// ============================================
+// FORMULÁRIO - CORRIGIDO (bancos e formas de pagamento)
+// ============================================
 function renderContaForm(conta) {
     const observacoesHTML = observacoesArray.length > 0 ? observacoesArray.map((obs, idx) => `<div class="observacao-item" data-index="${idx}"><div class="observacao-header"><span class="observacao-data">${new Date(obs.timestamp).toLocaleString('pt-BR')}</span><button type="button" class="btn-remove-obs" onclick="window.removerObservacao(${idx})" title="Remover">✕</button></div><p class="observacao-texto">${obs.texto}</p></div>`).join('') : '<p style="color: var(--text-secondary); font-style: italic; text-align: center; padding: 2rem;">Nenhuma observação registrada</p>';
 
@@ -628,8 +630,19 @@ function renderContaForm(conta) {
         <div class="tab-content" id="tab-pagamento">
             <div class="form-grid-compact">
                 <div class="form-row">
-                    <div class="form-group"><label for="forma_pagamento">Forma de Pagamento *</label><select id="forma_pagamento" required><option value="">Selecione...</option><option value="PIX" ${conta?.forma_pagamento === 'PIX' ? 'selected' : ''}>Pix</option><option value="BOLETO" ${conta?.forma_pagamento === 'BOLETO' ? 'selected' : ''}>Boleto</option><option value="CARTAO" ${conta?.forma_pagamento === 'CARTAO' ? 'selected' : ''}>Cartão</option><option value="DINHEIRO" ${conta?.forma_pagamento === 'DINHEIRO' ? 'selected' : ''}>Dinheiro</option><option value="TRANSFERENCIA" ${conta?.forma_pagamento === 'TRANSFERENCIA' ? 'selected' : ''}>Transferência</option></select></div>
-                    <div class="form-group"><label for="banco">Banco *</label><select id="banco" required><option value="">Selecione...</option><option value="BANCO DO BRASIL" ${conta?.banco === 'BANCO DO BRASIL' ? 'selected' : ''}>Banco do Brasil</option><option value="BRADESCO" ${conta?.banco === 'BRADESCO' ? 'selected' : ''}>Bradesco</option><option value="SICOOB" ${conta?.banco === 'SICOOB' ? 'selected' : ''}>Sicoob</option></select></div>
+                    <div class="form-group"><label for="forma_pagamento">Forma de Pagamento *</label>
+                        <select id="forma_pagamento" required>
+                            <option value="">Selecione...</option>
+                            <option value="DEB_AUTOMATICO" ${conta?.forma_pagamento === 'DEB_AUTOMATICO' ? 'selected' : ''}>Débito Automático</option>
+                            <option value="PIX" ${conta?.forma_pagamento === 'PIX' ? 'selected' : ''}>Pix</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label for="banco">Banco *</label>
+                        <select id="banco" required>
+                            <option value="">Selecione...</option>
+                            <option value="SICOOB" ${conta?.banco === 'SICOOB' ? 'selected' : ''}>Sicoob</option>
+                        </select>
+                    </div>
                     <div class="form-group"><label for="data_pagamento">Data do Pagamento</label><input type="date" id="data_pagamento" value="${conta?.data_pagamento || ''}"></div>
                 </div>
             </div>
@@ -890,7 +903,7 @@ function applyUppercaseFields() {
 }
 
 // ============================================
-// TOGGLE PAGO
+// TOGGLE PAGO - CORRIGIDO (cor de preenchimento mais evidente)
 // ============================================
 window.togglePago = async function(id) {
     const idStr = String(id);
@@ -948,19 +961,46 @@ window.togglePago = async function(id) {
     
     const modalHTML = `
         <div class="modal-overlay" id="pagamentoModal" style="display:flex;">
-            <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-content" style="max-width: 500px; border: 3px solid #22C55E; box-shadow: 0 0 30px rgba(34, 197, 94, 0.3);">
                 <button class="modal-close-x" onclick="window.closePagamentoModal()" title="Fechar">✕</button>
-                <div class="modal-header"><h3 class="modal-title">Confirmar Pagamento</h3></div>
-                <div class="modal-body">
-                    <p style="margin-bottom: 1rem;">Informe o valor efetivamente pago para <strong>${conta.descricao}</strong></p>
-                    <div class="form-group">
-                        <label for="valorPagoInput">Valor Pago (R$) *</label>
-                        <input type="number" id="valorPagoInput" step="0.01" min="0.01" placeholder="0,00" required>
+                <div class="modal-header" style="border-bottom: 3px solid #22C55E; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 12px 12px 0 0; padding: 1.5rem;">
+                    <h3 class="modal-title" style="color: #166534; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Confirmar Pagamento
+                    </h3>
+                </div>
+                <div class="modal-body" style="padding: 1.5rem; background: #fafafa;">
+                    <p style="margin-bottom: 1rem; font-size: 1.05rem; color: #1a1a1a;">
+                        Informe o valor efetivamente pago para <strong style="color: #166534;">${conta.descricao}</strong>
+                    </p>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label for="valorPagoInput" style="font-weight: 600; color: #1a1a1a;">Valor Pago (R$) *</label>
+                        <input type="number" id="valorPagoInput" step="0.01" min="0.01" placeholder="0,00" required 
+                               style="border: 2px solid #22C55E; background: #ffffff; padding: 12px; font-size: 1.2rem; border-radius: 8px; width: 100%;">
+                    </div>
+                    <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #6b7280; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        Valor deve ser maior que zero
                     </div>
                 </div>
-                <div class="modal-actions">
-                    <button type="button" class="secondary" onclick="window.closePagamentoModal()">Cancelar</button>
-                    <button type="button" class="save" onclick="window.confirmarPagamentoComValor('${idStr}')">Confirmar Pagamento</button>
+                <div class="modal-actions" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 2px solid #e5e7eb; border-radius: 0 0 12px 12px;">
+                    <button type="button" class="secondary" onclick="window.closePagamentoModal()" style="padding: 10px 24px; border-radius: 8px; font-weight: 600;">Cancelar</button>
+                    <button type="button" class="save" onclick="window.confirmarPagamentoComValor('${idStr}')" 
+                            style="padding: 10px 24px; background: #22C55E; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);"
+                            onmouseover="this.style.background='#16A34A'; this.style.transform='scale(1.02)'" 
+                            onmouseout="this.style.background='#22C55E'; this.style.transform='scale(1)'">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Confirmar Pagamento
+                    </button>
                 </div>
             </div>
         </div>
@@ -1102,10 +1142,62 @@ window.abrirRepetirModal = function(id) {
     calendarMode = 'repeat';
     calendarYear = currentMonth.getFullYear();
 
+    // Atualiza o título do modal com a descrição
+    const modalTitle = document.getElementById('calendarModalTitle');
+    if (modalTitle) {
+        modalTitle.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Repetir Conta: <span style="color: #1f2937;">${conta.descricao}</span>
+            </span>
+        `;
+    }
+
+    // Adiciona informações da conta no modal
+    const infoContainer = document.getElementById('contaInfoRepetir');
+    if (infoContainer) {
+        infoContainer.innerHTML = `
+            <div style="background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #e5e7eb; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Descrição</span>
+                    <div style="font-weight: 600; color: #1f2937;">${conta.descricao}</div>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Valor Inicial</span>
+                    <div style="font-weight: 700; color: #166534;">R$ ${parseFloat(conta.valor).toFixed(2)}</div>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Vencimento Original</span>
+                    <div style="font-weight: 600; color: #1f2937;">${formatDate(conta.data_vencimento)}</div>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Status</span>
+                    <div><span class="badge pendente">Pendente</span></div>
+                </div>
+            </div>
+            <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 12px; text-align: center;">
+                Selecione os meses para repetir esta conta
+            </p>
+        `;
+    }
+
     if (typeof renderCalendar === 'function') renderCalendar();
     const modal = document.getElementById('calendarModal');
     const actions = document.getElementById('calendarActions');
-    if (actions) actions.style.display = 'flex';
+    if (actions) {
+        actions.style.display = 'flex';
+        const confirmBtn = actions.querySelector('.save');
+        if (confirmBtn) {
+            confirmBtn.style.background = '#3B82F6';
+            confirmBtn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+            confirmBtn.textContent = 'Repetir Contas';
+        }
+    }
     if (modal) modal.classList.add('show');
 };
 
@@ -1119,24 +1211,28 @@ window.confirmarRepeticao = function() {
     const diaOriginal = new Date(original.data_vencimento + 'T00:00:00').getDate();
     const novasContas = [];
     const novasContasData = [];
+    const mesesSelecionados = [];
 
     mesesSelecionadosRepetir.forEach(key => {
         const [anoStr, mesStr] = key.split('-');
         const ano = parseInt(anoStr);
         const mes = parseInt(mesStr);
+        mesesSelecionados.push(`${meses[mes]} ${ano}`);
         const ultimoDiaMes = new Date(ano, mes + 1, 0).getDate();
         const dia = Math.min(diaOriginal, ultimoDiaMes);
         const dataVenc = new Date(ano, mes, dia);
         const dataVencStr = dataVenc.toISOString().split('T')[0];
         const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         
+        // Cria a nova conta com apenas Descrição, Valor Inicial e Vencimento
+        // Os demais campos ficam pendentes (vazios)
         const novaConta = {
             descricao: original.descricao,
             valor: parseFloat(original.valor),
             data_vencimento: dataVencStr,
-            forma_pagamento: original.forma_pagamento,
-            banco: original.banco,
-            tipo_pessoa: original.tipo_pessoa || null,
+            forma_pagamento: '',  // Pendente
+            banco: '',            // Pendente
+            tipo_pessoa: null,
             data_pagamento: null,
             valor_pago: null,
             observacoes: '[]',
@@ -1159,11 +1255,14 @@ window.confirmarRepeticao = function() {
     updateAllFilters();
     updateDashboard();
     filterContas();
-    showMessage(`${novasContas.length} repetição(ões) registrada(s) localmente`, 'success');
+    
+    // Mensagem personalizada
+    const mesesTexto = mesesSelecionados.join(', ');
+    showMessage(`✅ Registrando "${original.descricao}" em ${mesesTexto}`, 'success');
+    
     window.cancelarRepeticao();
 
     if (isOnline) {
-        showMessage('Sincronizando repetições...', 'info');
         novasContasData.forEach(item => addToQueue({ tempId: item.tempId, data: item.data }));
         processQueue();
     } else {
@@ -1291,8 +1390,8 @@ window.viewConta = function(id, activeTab = 'dados') {
             <div class="info-item"><span class="info-label">Valor Inicial:</span><span class="info-value info-highlight">R$ ${parseFloat(conta.valor).toFixed(2)}</span></div>
             <div class="info-item"><span class="info-label">Valor Pago:</span><span class="info-value">${conta.valor_pago ? 'R$ ' + parseFloat(conta.valor_pago).toFixed(2) : '-'}</span></div>
             <div class="info-item"><span class="info-label">Vencimento:</span><span class="info-value">${formatDate(conta.data_vencimento)}</span></div>
-            <div class="info-item"><span class="info-label">Forma de Pagamento:</span><span class="info-value">${conta.forma_pagamento}</span></div>
-            <div class="info-item"><span class="info-label">Banco:</span><span class="info-value">${conta.banco}</span></div>
+            <div class="info-item"><span class="info-label">Forma de Pagamento:</span><span class="info-value">${conta.forma_pagamento || 'Pendente'}</span></div>
+            <div class="info-item"><span class="info-label">Banco:</span><span class="info-value">${conta.banco || 'Pendente'}</span></div>
             <div class="info-item"><span class="info-label">${conta.data_pagamento ? 'Data do Pagamento:' : 'Status:'}</span><span class="info-value">${conta.data_pagamento ? formatDate(conta.data_pagamento) : 'Não pago'}</span></div>
             <div class="info-item"><span class="info-label">Tipo:</span><span class="info-value">${tipoPessoaLabel}</span></div>
         </div>
@@ -1410,6 +1509,9 @@ function filterContas() {
     renderContas(filtered);
 }
 
+// ============================================
+// RENDERIZAÇÃO DA TABELA - BOTÃO REPETIR AZUL
+// ============================================
 function renderContas(lista) {
     const container = document.getElementById('contasContainer');
     if (!container) return;
@@ -1470,7 +1572,7 @@ function renderContas(lista) {
                     <td style="white-space:nowrap;">${c.data_pagamento ? formatDate(c.data_pagamento) : '-'}</td>
                     <td style="text-align:center;">${alertIcon}</td>
                     <td class="actions-cell">
-                        ${podeRepetir ? `<button class="action-btn repeat" data-action="repeat" data-id="${contaId}">Repetir</button>` : ''}
+                        ${podeRepetir ? `<button class="action-btn repeat" data-action="repeat" data-id="${contaId}" style="background: #3B82F6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Repetir</button>` : ''}
                         <button class="action-btn edit" data-action="edit" data-id="${contaId}">Editar</button>
                         <button class="action-btn delete" data-action="delete" data-id="${contaId}">Excluir</button>
                     </td>
