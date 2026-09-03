@@ -59,6 +59,12 @@ async function processQueue() {
 
 async function processSingleItem(item) {
     try {
+        // Remove campos que não devem ser enviados
+        const dataToSend = { ...item.data };
+        delete dataToSend.tempId;
+        delete dataToSend.synced;
+        delete dataToSend.id;
+
         const response = await fetch(`${API_URL}/contas`, {
             method: 'POST',
             headers: {
@@ -66,7 +72,7 @@ async function processSingleItem(item) {
                 'X-Session-Token': sessionToken,
                 'Accept': 'application/json'
             },
-            body: JSON.stringify(item.data),
+            body: JSON.stringify(dataToSend),
             mode: 'cors'
         });
 
@@ -78,7 +84,9 @@ async function processSingleItem(item) {
         if (response.ok) {
             const savedData = await response.json();
             const index = contas.findIndex(c => c.tempId === item.tempId);
-            if (index !== -1) contas[index] = savedData;
+            if (index !== -1) {
+                contas[index] = { ...savedData, tempId: item.tempId, synced: true };
+            }
             item.status = 'success';
             console.log(`✅ Conta ${item.tempId} salva com sucesso`);
             updateAllFilters();
@@ -522,7 +530,6 @@ function getDadosFiltrados() {
             (c.forma_pagamento || '').toLowerCase().includes(search) ||
             (c.observacoes || '').toLowerCase().includes(search));
     }
-    // Ordenar por data de vencimento crescente
     filtered.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
     return filtered;
 }
@@ -710,7 +717,6 @@ async function salvarContaOtimista() {
         return; 
     }
     
-    // Determinar status baseado na data de pagamento
     let status = 'PENDENTE';
     if (dataPagamento) {
         status = 'PAGO';
@@ -739,7 +745,12 @@ async function salvarContaOtimista() {
     }
     
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    const contaTemporaria = { ...formData, id: null, tempId: tempId, synced: false };
+    const contaTemporaria = { 
+        ...formData, 
+        id: null, 
+        tempId: tempId, 
+        synced: false 
+    };
     contas.push(contaTemporaria);
     lastDataHash = JSON.stringify(contas.map(c => c.id || c.tempId));
     updateAllFilters();
@@ -1078,7 +1089,7 @@ window.deleteConta = async function(id) {
 };
 
 // ============================================
-// REPETIR CONTA
+// REPETIR CONTA - CORRIGIDO
 // ============================================
 window.abrirRepetirModal = function(id) {
     const idStr = String(id);
@@ -1103,9 +1114,11 @@ window.confirmarRepeticao = function() {
         showMessage('Selecione ao menos um mês para repetir.', 'warning');
         return;
     }
+    
     const original = contaParaRepetir;
     const diaOriginal = new Date(original.data_vencimento + 'T00:00:00').getDate();
     const novasContas = [];
+    const novasContasData = [];
 
     mesesSelecionadosRepetir.forEach(key => {
         const [anoStr, mesStr] = key.split('-');
@@ -1116,6 +1129,7 @@ window.confirmarRepeticao = function() {
         const dataVenc = new Date(ano, mes, dia);
         const dataVencStr = dataVenc.toISOString().split('T')[0];
         const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        
         const novaConta = {
             descricao: original.descricao,
             valor: parseFloat(original.valor),
@@ -1131,8 +1145,14 @@ window.confirmarRepeticao = function() {
             tempId: tempId,
             synced: false
         };
-        novasContas.push({ tempId, formData: novaConta });
-        contas.push(novaConta);
+        
+        contas.push({ ...novaConta });
+        novasContas.push({ ...novaConta });
+        
+        const dataParaEnviar = { ...novaConta };
+        delete dataParaEnviar.tempId;
+        delete dataParaEnviar.synced;
+        novasContasData.push({ tempId: tempId, data: dataParaEnviar });
     });
 
     lastDataHash = JSON.stringify(contas.map(c => c.id || c.tempId));
@@ -1142,9 +1162,23 @@ window.confirmarRepeticao = function() {
     showMessage(`${novasContas.length} repetição(ões) registrada(s) localmente`, 'success');
     window.cancelarRepeticao();
 
-    if (!isOnline) { showMessage('Sistema offline. As repetições serão sincronizadas quando voltar online.', 'warning'); return; }
-    novasContas.forEach(item => addToQueue({ tempId: item.tempId, data: item.formData }));
-    processQueue();
+    if (isOnline) {
+        showMessage('Sincronizando repetições...', 'info');
+        novasContasData.forEach(item => addToQueue({ tempId: item.tempId, data: item.data }));
+        processQueue();
+    } else {
+        showMessage('Sistema offline. As repetições serão sincronizadas quando voltar online.', 'warning');
+    }
+};
+
+window.cancelarRepeticao = function() {
+    const modal = document.getElementById('calendarModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    contaParaRepetir = null;
+    mesesSelecionadosRepetir = new Set();
 };
 
 // ============================================
@@ -1372,7 +1406,6 @@ function filterContas() {
     if (pagamento) filtered = filtered.filter(c => c.forma_pagamento === pagamento);
     if (status) { const hoje = new Date(); hoje.setHours(0, 0, 0, 0); filtered = filtered.filter(c => { if (status === 'PAGO') return c.status === 'PAGO'; if (status === 'VENCIDO') { if (c.status === 'PAGO') return false; const dataVenc = new Date(c.data_vencimento + 'T00:00:00'); dataVenc.setHours(0, 0, 0, 0); return dataVenc <= hoje; } if (status === 'PENDENTE') { if (c.status === 'PAGO') return false; const dataVenc = new Date(c.data_vencimento + 'T00:00:00'); dataVenc.setHours(0, 0, 0, 0); return dataVenc > hoje; } return true; }); }
     if (search) filtered = filtered.filter(c => (c.descricao || '').toLowerCase().includes(search) || (c.banco || '').toLowerCase().includes(search) || (c.forma_pagamento || '').toLowerCase().includes(search) || (c.observacoes || '').toLowerCase().includes(search));
-    // Ordenar por data de vencimento crescente
     filtered.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
     renderContas(filtered);
 }
@@ -1380,7 +1413,11 @@ function filterContas() {
 function renderContas(lista) {
     const container = document.getElementById('contasContainer');
     if (!container) return;
-    if (!lista || lista.length === 0) { container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary)">Nenhuma conta encontrada para este período</div>'; return; }
+    if (!lista || lista.length === 0) { 
+        container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary)">Nenhuma conta encontrada para este período</div>'; 
+        return; 
+    }
+    
     const table = `<table>
         <thead>
             <tr>
