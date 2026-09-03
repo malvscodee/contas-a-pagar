@@ -36,20 +36,8 @@ module.exports = function (supabase) {
     });
 
     // ─── GET /api/contas/grupo/:grupoId ─────────────────────────────────────
-    router.get('/contas/grupo/:grupoId', async (req, res) => {
-        try {
-            const { data, error } = await supabase
-                .from('contas_pagar')
-                .select('*')
-                .eq('grupo_id', req.params.grupoId)
-                .order('parcela_numero', { ascending: true });
-            if (error) throw error;
-            res.json(data);
-        } catch (err) {
-            console.error('[pagar] GET /contas/grupo:', err.message);
-            res.status(500).json({ error: err.message });
-        }
-    });
+    // REMOVIDO - essa rota não é mais necessária pois grupo_id foi removido
+    // Se ainda precisar, comente ou remova esta rota
 
     // ─── POST /api/contas ───────────────────────────────────────────────────
     router.post('/contas', async (req, res) => {
@@ -58,6 +46,13 @@ module.exports = function (supabase) {
             delete body.id;
             delete body.created_at;
             delete body.updated_at;
+
+            // Validação básica
+            if (!body.descricao || !body.valor || !body.data_vencimento) {
+                return res.status(400).json({ 
+                    error: 'Campos obrigatórios: descricao, valor, data_vencimento' 
+                });
+            }
 
             const { data, error } = await supabase
                 .from('contas_pagar')
@@ -95,7 +90,7 @@ module.exports = function (supabase) {
         }
     });
 
-    // ─── PATCH /api/contas/:id (NOVO – resolve o erro 404 no toggle) ────────
+    // ─── PATCH /api/contas/:id ──────────────────────────────────────────────
     router.patch('/contas/:id', async (req, res) => {
         try {
             const updates = { ...req.body, updated_at: new Date().toISOString() };
