@@ -26,9 +26,9 @@
             </div>
 
             <div class="dashboard-grid">
-                <div class="stat-card stat-card-success"><div class="stat-icon stat-icon-success"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-success" id="statPagos">R$ 0,00</div><div class="stat-label">Pagos</div></div></div>
                 <div class="stat-card stat-card-danger" id="cardVencido" onclick="window.showVencidoModal()" style="cursor:pointer;position:relative;" title="Clique para ver detalhes"><span class="pulse-badge" id="pulseBadge" style="display:none;"></span><div class="stat-icon stat-icon-danger"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div><div class="stat-content"><div class="stat-value stat-value-danger" id="statVencido">0</div><div class="stat-label">Vencido</div></div></div>
-                <div class="stat-card stat-card-warning"><div class="stat-icon stat-icon-warning"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-warning" id="statPendente">R$ 0,00</div><div class="stat-label">Pendente</div></div></div>
+                <div class="stat-card stat-card-warning"><div class="stat-icon stat-icon-warning"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-warning" id="statPendente">R$ 0,00</div><div class="stat-label">A Pagar</div></div></div>
+                <div class="stat-card stat-card-success"><div class="stat-icon stat-icon-success"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-success" id="statPagos">R$ 0,00</div><div class="stat-label">Pago</div></div></div>
                 <div class="stat-card"><div class="stat-icon stat-icon-default"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div><div class="stat-content"><div class="stat-value" id="statValorTotal">R$ 0,00</div><div class="stat-label">Valor Total</div></div></div>
             </div>
 
@@ -59,7 +59,14 @@
             </div></div>
 
             <div class="calendar-modal" id="calendarModal">
-                <div class="calendar-content"><div class="calendar-header"><button onclick="window.changeCalendarYear(-1)" class="calendar-year-nav"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button><h3 id="calendarYear">2026</h3><button onclick="window.changeCalendarYear(1)" class="calendar-year-nav"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button></div><div class="calendar-months" id="calendarMonths"></div></div>
+                <div class="calendar-content">
+                    <div class="calendar-header"><button onclick="window.changeCalendarYear(-1)" class="calendar-year-nav"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button><h3 id="calendarYear">2026</h3><button onclick="window.changeCalendarYear(1)" class="calendar-year-nav"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button></div>
+                    <div class="calendar-months" id="calendarMonths"></div>
+                    <div class="calendar-actions" id="calendarActions" style="display:none;">
+                        <button type="button" class="secondary" onclick="window.cancelarRepeticao()">Cancelar</button>
+                        <button type="button" class="save" onclick="window.confirmarRepeticao()">Confirmar Repetição</button>
+                    </div>
+                </div>
             </div>
 
             <div class="card table-card"><div id="contasContainer"></div></div>
