@@ -35,17 +35,17 @@ module.exports = function (supabase) {
         }
     });
 
-    // ─── GET /api/contas/grupo/:grupoId ─────────────────────────────────────
-    // REMOVIDO - essa rota não é mais necessária pois grupo_id foi removido
-    // Se ainda precisar, comente ou remova esta rota
-
     // ─── POST /api/contas ───────────────────────────────────────────────────
     router.post('/contas', async (req, res) => {
         try {
             const body = req.body;
+            
+            // Remove campos que não devem ser enviados
             delete body.id;
             delete body.created_at;
             delete body.updated_at;
+            delete body.synced;
+            delete body.temp_id;
 
             // Validação básica
             if (!body.descricao || !body.valor || !body.data_vencimento) {
@@ -59,6 +59,7 @@ module.exports = function (supabase) {
                 .insert([body])
                 .select()
                 .single();
+                
             if (error) throw error;
             res.status(201).json(data);
         } catch (err) {
@@ -73,6 +74,8 @@ module.exports = function (supabase) {
             const body = { ...req.body };
             delete body.id;
             delete body.created_at;
+            delete body.synced;
+            delete body.temp_id;
             body.updated_at = new Date().toISOString();
 
             const { data, error } = await supabase
@@ -81,6 +84,7 @@ module.exports = function (supabase) {
                 .eq('id', req.params.id)
                 .select()
                 .single();
+                
             if (error) throw error;
             if (!data) return res.status(404).json({ error: 'Conta não encontrada' });
             res.json(data);
@@ -96,6 +100,8 @@ module.exports = function (supabase) {
             const updates = { ...req.body, updated_at: new Date().toISOString() };
             delete updates.id;
             delete updates.created_at;
+            delete updates.synced;
+            delete updates.temp_id;
 
             const { data, error } = await supabase
                 .from('contas_pagar')
@@ -103,6 +109,7 @@ module.exports = function (supabase) {
                 .eq('id', req.params.id)
                 .select()
                 .single();
+                
             if (error) throw error;
             if (!data) return res.status(404).json({ error: 'Conta não encontrada' });
             res.json(data);
