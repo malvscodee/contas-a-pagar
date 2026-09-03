@@ -40,14 +40,12 @@ module.exports = function (supabase) {
         try {
             const body = req.body;
             
-            // Remove campos que não devem ser enviados
             delete body.id;
             delete body.created_at;
             delete body.updated_at;
             delete body.synced;
             delete body.temp_id;
 
-            // Validação básica
             if (!body.descricao || !body.valor || !body.data_vencimento) {
                 return res.status(400).json({ 
                     error: 'Campos obrigatórios: descricao, valor, data_vencimento' 
