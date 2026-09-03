@@ -11,9 +11,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ─── SUPABASE ──────────────────────────────────────────────────────────────
-// Configure estas variáveis no ambiente do Render (Settings → Environment):
-//   SUPABASE_URL               → URL do seu projeto Supabase
-//   SUPABASE_SERVICE_ROLE_KEY  → chave "service_role" (nunca a "anon")
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -75,7 +72,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('\n📡 Rotas de API registradas:');
     console.log('  GET    /health                → Health check');
     console.log('  GET    /api/contas             → Listar contas (filtros ?mes=&ano=)');
-    console.log('  GET    /api/contas/grupo/:id   → Listar parcelas de um grupo');
     console.log('  POST   /api/contas             → Criar conta');
     console.log('  PUT    /api/contas/:id         → Atualizar conta');
     console.log('  PATCH  /api/contas/:id         → Atualizar status/pagamento');
