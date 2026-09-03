@@ -28,8 +28,8 @@
             <div class="dashboard-grid">
                 <div class="stat-card stat-card-danger" id="cardVencido" onclick="window.showVencidoModal()" style="cursor:pointer;position:relative;" title="Clique para ver detalhes"><span class="pulse-badge" id="pulseBadge" style="display:none;"></span><div class="stat-icon stat-icon-danger"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div><div class="stat-content"><div class="stat-value stat-value-danger" id="statVencido">0</div><div class="stat-label">Vencido</div></div></div>
                 <div class="stat-card stat-card-warning"><div class="stat-icon stat-icon-warning"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-warning" id="statPendente">R$ 0,00</div><div class="stat-label">A Pagar</div></div></div>
-                <div class="stat-card stat-card-success"><div class="stat-icon stat-icon-success"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-success" id="statPagos">R$ 0,00</div><div class="stat-label">Pago</div></div></div>
-                <div class="stat-card"><div class="stat-icon stat-icon-default"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div><div class="stat-content"><div class="stat-value" id="statValorTotal">R$ 0,00</div><div class="stat-label">Valor Total</div></div></div>
+                <div class="stat-card stat-card-success"><div class="stat-icon stat-icon-success"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div><div class="stat-content"><div class="stat-value stat-value-success" id="statPagos">R$ 0,00</div><div class="stat-label">Valor Total Pago</div></div></div>
+                <div class="stat-card"><div class="stat-icon stat-icon-default"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div><div class="stat-content"><div class="stat-value" id="statValorTotal">R$ 0,00</div><div class="stat-label">Valor Total Inicial</div></div></div>
             </div>
 
             <div class="search-bar-wrapper"><div class="search-bar">
@@ -45,6 +45,13 @@
                         <button onclick="window.changeMonth(1)" class="month-nav-arrow" title="Próximo mês"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
                     </div>
                 </div>
+                <button class="calendar-btn" onclick="window.abrirPainelFinanceiro()" title="Painel Financeiro">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                </button>
                 <button class="calendar-btn" onclick="window.gerarPDF()" title="Gerar PDF">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -70,6 +77,36 @@
             </div>
 
             <div class="card table-card"><div id="contasContainer"></div></div>
+        </div>
+    </div>
+
+    <!-- MODAL PAINEL FINANCEIRO -->
+    <div class="modal-overlay" id="painelModal" style="display:none;">
+        <div class="modal-content modal-large" style="max-width: 1100px; width: 95%;">
+            <button class="modal-close-x" onclick="window.closePainelFinanceiro()" title="Fechar">✕</button>
+            <div class="modal-header">
+                <h3 class="modal-title">Painel Financeiro</h3>
+            </div>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                <button onclick="window.changePainelYear(-1)" class="month-nav-arrow" style="background: var(--input-bg); border: 1px solid var(--border-color); padding: 0.35rem 0.75rem; border-radius: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <span style="font-weight: 700; font-size: 1.2rem;" id="painelYearDisplay">2026</span>
+                <button onclick="window.changePainelYear(1)" class="month-nav-arrow" style="background: var(--input-bg); border: 1px solid var(--border-color); padding: 0.35rem 0.75rem; border-radius: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+            </div>
+            <div class="tabs-container">
+                <div class="tabs-nav">
+                    <button type="button" class="tab-btn active" onclick="window.switchPainelTab(0)">Ano</button>
+                    <button type="button" class="tab-btn" onclick="window.switchPainelTab(1)">Meses</button>
+                </div>
+                <div class="tab-content active" id="painelTabAno">
+                    <div class="dashboard-grid" id="painelAnoDash" style="grid-template-columns: repeat(3, 1fr);"></div>
+                </div>
+                <div class="tab-content" id="painelTabMeses">
+                    <div class="dashboard-grid" id="painelMesesDash" style="grid-template-columns: repeat(4, 1fr);"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" onclick="window.closePainelFinanceiro()">Fechar</button>
+            </div>
         </div>
     </div>
 
