@@ -322,7 +322,7 @@ function updateDashboard() {
         .filter(c => c.status === 'PAGO')
         .reduce((sum, c) => sum + parseFloat(c.valor_pago || 0), 0);
     
-    const contasVencidas = contasDoMes.filter(c => {
+    const contasVencidas = contas.filter(c => {
         if (c.status === 'PAGO') return false;
         const dataVenc = new Date(c.data_vencimento + 'T00:00:00');
         dataVenc.setHours(0, 0, 0, 0);
@@ -361,12 +361,7 @@ window.showVencidoModal = function() {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     
-    const contasDoMes = contas.filter(c => {
-        const dataVenc = new Date(c.data_vencimento + 'T00:00:00');
-        return dataVenc.getMonth() === currentMonth.getMonth() && dataVenc.getFullYear() === currentMonth.getFullYear();
-    });
-    
-    const contasVencidas = contasDoMes.filter(c => {
+    const contasVencidas = contas.filter(c => {
         if (c.status === 'PAGO') return false;
         const dataVenc = new Date(c.data_vencimento + 'T00:00:00');
         dataVenc.setHours(0, 0, 0, 0);
@@ -383,7 +378,7 @@ window.showVencidoModal = function() {
     } else {
         body.innerHTML = `<div style="overflow-x:auto;"><table>
             <thead>
-                <tr><th>Descrição</th><th>Vencimento</th><th style="text-align:right;">Valor Inicial</th><th style="text-align:center;">Dias Atraso</th></tr>
+                <tr><th>Descrição</th><th>Data de Vencimento</th><th style="text-align:right;">Valor</th><th style="text-align:center;">Dias Atraso</th></tr>
             </thead>
             <tbody>${contasVencidas.map(c => {
                 const dataVenc = new Date(c.data_vencimento + 'T00:00:00');
@@ -526,6 +521,7 @@ function getDadosFiltrados() {
             (c.forma_pagamento || '').toLowerCase().includes(search) ||
             (c.observacoes || '').toLowerCase().includes(search));
     }
+    // Ordenar por data de vencimento crescente
     filtered.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
     return filtered;
 }
@@ -842,7 +838,6 @@ window.togglePago = async function(id) {
         return;
     }
     
-    // Abrir modal para preencher valor pago
     const modalHTML = `
         <div class="modal-overlay" id="pagamentoModal" style="display:flex;">
             <div class="modal-content" style="max-width: 500px;">
@@ -1245,6 +1240,7 @@ function filterContas() {
     if (pagamento) filtered = filtered.filter(c => c.forma_pagamento === pagamento);
     if (status) { const hoje = new Date(); hoje.setHours(0, 0, 0, 0); filtered = filtered.filter(c => { if (status === 'PAGO') return c.status === 'PAGO'; if (status === 'VENCIDO') { if (c.status === 'PAGO') return false; const dataVenc = new Date(c.data_vencimento + 'T00:00:00'); dataVenc.setHours(0, 0, 0, 0); return dataVenc <= hoje; } if (status === 'PENDENTE') { if (c.status === 'PAGO') return false; const dataVenc = new Date(c.data_vencimento + 'T00:00:00'); dataVenc.setHours(0, 0, 0, 0); return dataVenc > hoje; } return true; }); }
     if (search) filtered = filtered.filter(c => (c.descricao || '').toLowerCase().includes(search) || (c.banco || '').toLowerCase().includes(search) || (c.forma_pagamento || '').toLowerCase().includes(search) || (c.observacoes || '').toLowerCase().includes(search));
+    // Ordenar por data de vencimento crescente
     filtered.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
     renderContas(filtered);
 }
