@@ -9,18 +9,34 @@ const mesesNomes = [
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
-// Abrir/fechar modal de calendário
+// Abrir/fechar modal de calendário (modo navegação)
 window.toggleCalendar = function() {
     const modal = document.getElementById('calendarModal');
+    const actions = document.getElementById('calendarActions');
     if (!modal) return;
 
     if (modal.classList.contains('show')) {
         modal.classList.remove('show');
+        calendarMode = 'navigate';
+        if (actions) actions.style.display = 'none';
     } else {
+        calendarMode = 'navigate';
         calendarYear = currentMonth.getFullYear();
+        if (actions) actions.style.display = 'none';
         renderCalendar();
         modal.classList.add('show');
     }
+};
+
+// Cancelar seleção de repetição e fechar modal
+window.cancelarRepeticao = function() {
+    calendarMode = 'navigate';
+    mesesSelecionadosRepetir = new Set();
+    contaParaRepetir = null;
+    const modal = document.getElementById('calendarModal');
+    const actions = document.getElementById('calendarActions');
+    if (actions) actions.style.display = 'none';
+    if (modal) modal.classList.remove('show');
 };
 
 // Mudar o ano no calendário
@@ -46,17 +62,35 @@ function renderCalendar() {
         monthButton.className = 'calendar-month';
         monthButton.textContent = nome;
 
-        // Marcar mês atual
-        if (calendarYear === currentMonth.getFullYear() && index === currentMonth.getMonth()) {
-            monthButton.classList.add('current');
+        if (typeof calendarMode !== 'undefined' && calendarMode === 'repeat') {
+            const key = `${calendarYear}-${index}`;
+            if (typeof mesesSelecionadosRepetir !== 'undefined' && mesesSelecionadosRepetir.has(key)) {
+                monthButton.classList.add('selected');
+            }
+            monthButton.onclick = () => toggleMesRepeticao(index);
+        } else {
+            if (calendarYear === currentMonth.getFullYear() && index === currentMonth.getMonth()) {
+                monthButton.classList.add('current');
+            }
+            monthButton.onclick = () => selectMonth(index);
         }
 
-        monthButton.onclick = () => selectMonth(index);
         monthsContainer.appendChild(monthButton);
     });
 }
 
-// Selecionar um mês
+// Alternar seleção de mês no modo repetição
+function toggleMesRepeticao(monthIndex) {
+    const key = `${calendarYear}-${monthIndex}`;
+    if (mesesSelecionadosRepetir.has(key)) {
+        mesesSelecionadosRepetir.delete(key);
+    } else {
+        mesesSelecionadosRepetir.add(key);
+    }
+    renderCalendar();
+}
+
+// Selecionar um mês (modo navegação)
 function selectMonth(monthIndex) {
     if (typeof currentMonth !== 'undefined') {
         currentMonth = new Date(calendarYear, monthIndex, 1);
@@ -82,7 +116,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modal) {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
-                modal.classList.remove('show');
+                if (typeof calendarMode !== 'undefined' && calendarMode === 'repeat') {
+                    window.cancelarRepeticao();
+                } else {
+                    modal.classList.remove('show');
+                }
             }
         });
     }
