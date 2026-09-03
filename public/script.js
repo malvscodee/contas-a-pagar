@@ -607,9 +607,6 @@ window.showFormModal = function(editingId = null) {
     setTimeout(() => { applyUppercaseFields(); }, 100);
 };
 
-// ============================================
-// FORMULÁRIO - CORRIGIDO (bancos e formas de pagamento)
-// ============================================
 function renderContaForm(conta) {
     const observacoesHTML = observacoesArray.length > 0 ? observacoesArray.map((obs, idx) => `<div class="observacao-item" data-index="${idx}"><div class="observacao-header"><span class="observacao-data">${new Date(obs.timestamp).toLocaleString('pt-BR')}</span><button type="button" class="btn-remove-obs" onclick="window.removerObservacao(${idx})" title="Remover">✕</button></div><p class="observacao-texto">${obs.texto}</p></div>`).join('') : '<p style="color: var(--text-secondary); font-style: italic; text-align: center; padding: 2rem;">Nenhuma observação registrada</p>';
 
@@ -961,25 +958,27 @@ window.togglePago = async function(id) {
     
     const modalHTML = `
         <div class="modal-overlay" id="pagamentoModal" style="display:flex;">
-            <div class="modal-content" style="max-width: 500px; border: 3px solid #22C55E; box-shadow: 0 0 30px rgba(34, 197, 94, 0.3);">
+            <div class="modal-content" style="max-width: 500px; border: 4px solid #16A34A; box-shadow: 0 0 40px rgba(22, 163, 74, 0.4); background: #ffffff; border-radius: 16px;">
                 <button class="modal-close-x" onclick="window.closePagamentoModal()" title="Fechar">✕</button>
-                <div class="modal-header" style="border-bottom: 3px solid #22C55E; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 12px 12px 0 0; padding: 1.5rem;">
-                    <h3 class="modal-title" style="color: #166534; display: flex; align-items: center; gap: 0.5rem;">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5">
+                <div class="modal-header" style="border-bottom: 4px solid #16A34A; background: linear-gradient(135deg, #dcfce7, #bbf7d0); border-radius: 12px 12px 0 0; padding: 1.5rem;">
+                    <h3 class="modal-title" style="color: #14532d; display: flex; align-items: center; gap: 0.75rem; font-size: 1.3rem;">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5">
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                             <polyline points="22 4 12 14.01 9 11.01"/>
                         </svg>
                         Confirmar Pagamento
                     </h3>
                 </div>
-                <div class="modal-body" style="padding: 1.5rem; background: #fafafa;">
+                <div class="modal-body" style="padding: 1.5rem; background: #ffffff;">
                     <p style="margin-bottom: 1rem; font-size: 1.05rem; color: #1a1a1a;">
-                        Informe o valor efetivamente pago para <strong style="color: #166534;">${conta.descricao}</strong>
+                        Informe o valor efetivamente pago para <strong style="color: #14532d;">${conta.descricao}</strong>
                     </p>
                     <div class="form-group" style="margin-bottom: 0.5rem;">
-                        <label for="valorPagoInput" style="font-weight: 600; color: #1a1a1a;">Valor Pago (R$) *</label>
+                        <label for="valorPagoInput" style="font-weight: 600; color: #1a1a1a; display: block; margin-bottom: 0.25rem;">Valor Pago (R$) *</label>
                         <input type="number" id="valorPagoInput" step="0.01" min="0.01" placeholder="0,00" required 
-                               style="border: 2px solid #22C55E; background: #ffffff; padding: 12px; font-size: 1.2rem; border-radius: 8px; width: 100%;">
+                               style="border: 3px solid #16A34A; background: #f0fdf4; padding: 14px; font-size: 1.3rem; border-radius: 10px; width: 100%; outline: none; transition: all 0.3s;"
+                               onfocus="this.style.borderColor='#15803d'; this.style.boxShadow='0 0 0 4px rgba(22, 163, 74, 0.2)'"
+                               onblur="this.style.borderColor='#16A34A'; this.style.boxShadow='none'">
                     </div>
                     <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #6b7280; display: flex; align-items: center; gap: 0.5rem;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2">
@@ -990,13 +989,13 @@ window.togglePago = async function(id) {
                         Valor deve ser maior que zero
                     </div>
                 </div>
-                <div class="modal-actions" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 2px solid #e5e7eb; border-radius: 0 0 12px 12px;">
-                    <button type="button" class="secondary" onclick="window.closePagamentoModal()" style="padding: 10px 24px; border-radius: 8px; font-weight: 600;">Cancelar</button>
+                <div class="modal-actions" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 2px solid #e5e7eb; border-radius: 0 0 12px 12px; display: flex; justify-content: flex-end; gap: 0.75rem;">
+                    <button type="button" class="secondary" onclick="window.closePagamentoModal()" style="padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; cursor: pointer; transition: all 0.2s;">Cancelar</button>
                     <button type="button" class="save" onclick="window.confirmarPagamentoComValor('${idStr}')" 
-                            style="padding: 10px 24px; background: #22C55E; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);"
-                            onmouseover="this.style.background='#16A34A'; this.style.transform='scale(1.02)'" 
-                            onmouseout="this.style.background='#22C55E'; this.style.transform='scale(1)'">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                            style="padding: 10px 28px; background: #16A34A; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 16px rgba(22, 163, 74, 0.5); display: flex; align-items: center; gap: 0.5rem;"
+                            onmouseover="this.style.background='#15803d'; this.style.transform='scale(1.03)'; this.style.boxShadow='0 6px 24px rgba(22, 163, 74, 0.6)'" 
+                            onmouseout="this.style.background='#16A34A'; this.style.transform='scale(1)'; this.style.boxShadow='0 4px 16px rgba(22, 163, 74, 0.5)'">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display: inline-block;">
                             <polyline points="20 6 9 17 4 12"/>
                         </svg>
                         Confirmar Pagamento
@@ -1129,8 +1128,78 @@ window.deleteConta = async function(id) {
 };
 
 // ============================================
-// REPETIR CONTA - CORRIGIDO (mensagem sem meses)
+// REPETIR CONTA - CORRIGIDO
 // ============================================
+window.abrirRepetirModal = function(id) {
+    const idStr = String(id);
+    const conta = contas.find(c => String(c.id || c.tempId) === idStr);
+    if (!conta) { showMessage('Conta não encontrada!', 'error'); return; }
+    if (idStr.startsWith('temp_')) { showMessage('Aguarde a sincronização para repetir esta conta.', 'warning'); return; }
+
+    contaParaRepetir = conta;
+    mesesSelecionadosRepetir = new Set();
+    calendarMode = 'repeat';
+    calendarYear = currentMonth.getFullYear();
+
+    // Atualiza o título do modal com a descrição
+    const modalTitle = document.getElementById('calendarModalTitle');
+    if (modalTitle) {
+        modalTitle.innerHTML = `
+            <span style="display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Repetir Conta: <span style="color: #1f2937;">${conta.descricao}</span>
+            </span>
+        `;
+    }
+
+    // Adiciona informações da conta no modal
+    const infoContainer = document.getElementById('contaInfoRepetir');
+    if (infoContainer) {
+        infoContainer.innerHTML = `
+            <div style="background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #e5e7eb; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Descrição</span>
+                    <div style="font-weight: 600; color: #1f2937;">${conta.descricao}</div>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Valor Inicial</span>
+                    <div style="font-weight: 700; color: #166534;">R$ ${parseFloat(conta.valor).toFixed(2)}</div>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Vencimento Original</span>
+                    <div style="font-weight: 600; color: #1f2937;">${formatDate(conta.data_vencimento)}</div>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: #6b7280;">Status</span>
+                    <div><span class="badge pendente">Pendente</span></div>
+                </div>
+            </div>
+            <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 12px; text-align: center;">
+                Selecione os meses para repetir esta conta
+            </p>
+        `;
+    }
+
+    if (typeof renderCalendar === 'function') renderCalendar();
+    const modal = document.getElementById('calendarModal');
+    const actions = document.getElementById('calendarActions');
+    if (actions) {
+        actions.style.display = 'flex';
+        const confirmBtn = actions.querySelector('.save');
+        if (confirmBtn) {
+            confirmBtn.style.background = '#1D4ED8';
+            confirmBtn.style.boxShadow = '0 4px 12px rgba(29, 78, 216, 0.4)';
+            confirmBtn.textContent = 'Repetir Contas';
+        }
+    }
+    if (modal) modal.classList.add('show');
+};
+
 window.confirmarRepeticao = function() {
     if (!contaParaRepetir || mesesSelecionadosRepetir.size === 0) {
         showMessage('Selecione ao menos um mês para repetir.', 'warning');
@@ -1196,6 +1265,7 @@ window.confirmarRepeticao = function() {
         showMessage('Sistema offline. As repetições serão sincronizadas quando voltar online.', 'warning');
     }
 };
+
 window.cancelarRepeticao = function() {
     const modal = document.getElementById('calendarModal');
     if (modal) {
@@ -1436,7 +1506,7 @@ function filterContas() {
 }
 
 // ============================================
-// RENDERIZAÇÃO DA TABELA - BOTÃO REPETIR AZUL
+// RENDERIZAÇÃO DA TABELA - BOTÃO REPETIR AZUL ESCURO
 // ============================================
 function renderContas(lista) {
     const container = document.getElementById('contasContainer');
@@ -1498,7 +1568,7 @@ function renderContas(lista) {
                     <td style="white-space:nowrap;">${c.data_pagamento ? formatDate(c.data_pagamento) : '-'}</td>
                     <td style="text-align:center;">${alertIcon}</td>
                     <td class="actions-cell">
-                        ${podeRepetir ? `<button class="action-btn repeat" data-action="repeat" data-id="${contaId}" style="background: #3B82F6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Repetir</button>` : ''}
+                        ${podeRepetir ? `<button class="action-btn repeat" data-action="repeat" data-id="${contaId}" style="background: #1D4ED8; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; height: 32px; line-height: 1;">Repetir</button>` : ''}
                         <button class="action-btn edit" data-action="edit" data-id="${contaId}">Editar</button>
                         <button class="action-btn delete" data-action="delete" data-id="${contaId}">Excluir</button>
                     </td>
