@@ -10,13 +10,13 @@ let lastDataHash = '';
 let sessionToken = null;
 let currentMonth = new Date();
 
-let formType = 'simple';
-let numParcelas = 0;
-let currentGrupoId = null;
-let parcelasDoGrupo = [];
 let observacoesArray = [];
 let tentativasReconexao = 0;
 const MAX_TENTATIVAS = 3;
+
+let contaParaRepetir = null;
+let mesesSelecionadosRepetir = new Set();
+let calendarMode = 'navigate';
 
 const meses = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -79,7 +79,7 @@ async function processSingleItem(item) {
             const index = contas.findIndex(c => c.tempId === item.tempId);
             if (index !== -1) contas[index] = savedData;
             item.status = 'success';
-            console.log(`✅ Parcela ${item.tempId} salva com sucesso`);
+            console.log(`✅ Conta ${item.tempId} salva com sucesso`);
             updateAllFilters();
             updateDashboard();
             filterContas();
@@ -92,7 +92,7 @@ async function processSingleItem(item) {
         
         if (item.attempts >= processingQueue.retryAttempts) {
             item.status = 'failed';
-            showMessage(`Falha ao salvar parcela. Tente novamente.`, 'error');
+            showMessage(`Falha ao salvar conta. Tente novamente.`, 'error');
             contas = contas.filter(c => c.tempId !== item.tempId);
             updateDashboard();
             filterContas();
@@ -134,6 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'toggle':
                     window.togglePago(id);
+                    break;
+                case 'repeat':
+                    window.abrirRepetirModal(id);
                     break;
                 case 'new-conta':
                     window.showFormModal(null);
@@ -295,30 +298,6 @@ async function loadContas() {
     }
 }
 
-async function loadParcelasDoGrupo(grupoId) {
-    if (!isOnline || !grupoId) return [];
-
-    try {
-        const response = await fetch(`${API_URL}/contas/grupo/${grupoId}`, {
-            method: 'GET',
-            headers: { 
-                'X-Session-Token': sessionToken,
-                'Accept': 'application/json'
-            },
-            mode: 'cors'
-        });
-
-        if (tratarErroAutenticacao(response)) return [];
-        if (!response.ok) return [];
-
-        const data = await response.json();
-        return data || [];
-    } catch (error) {
-        console.error('❌ Erro ao carregar parcelas do grupo:', error);
-        return [];
-    }
-}
-
 function startPolling() {
     loadContas();
     setInterval(() => {
@@ -432,6 +411,10 @@ window.closeVencidoModal = function() {
 // ============================================
 // PDF - GERAR RELATÓRIO
 // ============================================
+function formatBRL(valor) {
+    return `R$ ${parseFloat(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 window.gerarPDF = function() {
     const filtrados = getDadosFiltrados();
     if (!filtrados.length) {
@@ -464,14 +447,9 @@ window.gerarPDF = function() {
     }
     
     const tableData = filtrados.map(c => {
-        let parcelaDisplay = '-';
-        if (c.parcela_numero && c.parcela_total) {
-            parcelaDisplay = `${c.parcela_numero}/${c.parcela_total}`;
-        }
         return [
             c.descricao,
-            parcelaDisplay,
-            `R$ ${parseFloat(c.valor).toFixed(2)}`,
+            formatBRL(c.valor),
             formatDate(c.data_vencimento),
             c.banco || '-',
             c.data_pagamento ? formatDate(c.data_pagamento) : '-'
@@ -480,18 +458,17 @@ window.gerarPDF = function() {
     
     doc.autoTable({
         startY: 48,
-        head: [['Descrição', 'Parcela', 'Valor (R$)', 'Vencimento', 'Banco', 'Data Pagamento']],
+        head: [['Descrição', 'Valor', 'Vencimento', 'Banco', 'Data Pagamento']],
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
         styles: { fontSize: 9, cellPadding: 3, valign: 'middle' },
         columnStyles: {
             0: { cellWidth: 'auto', lineWidth: 0.2 },
-            1: { halign: 'center', cellWidth: 20 },
-            2: { halign: 'right', cellWidth: 25 },
-            3: { halign: 'center', cellWidth: 22 },
-            4: { halign: 'left', cellWidth: 28 },
-            5: { halign: 'center', cellWidth: 25 }
+            1: { halign: 'right', cellWidth: 32 },
+            2: { halign: 'center', cellWidth: 25 },
+            3: { halign: 'left', cellWidth: 32 },
+            4: { halign: 'center', cellWidth: 30 }
         },
         margin: { left: 14, right: 14 }
     });
@@ -503,9 +480,9 @@ window.gerarPDF = function() {
     
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
-    doc.text(`Total Pago: R$ ${totalPago.toFixed(2)}`, 14, finalY);
-    doc.text(`Total Pendente: R$ ${totalPendente.toFixed(2)}`, 80, finalY);
-    doc.text(`Total Geral: R$ ${totalGeral.toFixed(2)}`, 160, finalY);
+    doc.text(`Total Pago: ${formatBRL(totalPago)}`, 14, finalY);
+    doc.text(`Total Pendente: ${formatBRL(totalPendente)}`, 100, finalY);
+    doc.text(`Total Geral: ${formatBRL(totalGeral)}`, 190, finalY);
     
     const nomeArquivo = `contas_pagar_${mesAno.replace(' ', '_')}.pdf`;
     doc.save(nomeArquivo);
@@ -564,12 +541,11 @@ window.sincronizarDados = async function() {
 // ============================================
 window.toggleForm = function() { window.showFormModal(null); };
 
-window.showFormModal = async function(editingId = null) {
+window.showFormModal = function(editingId = null) {
     console.log('📝 showFormModal chamado com editingId:', editingId);
     
     const isEditing = editingId !== null && editingId !== undefined && editingId !== 'null' && editingId !== '';
     let conta = null;
-    let isPagamentoFixo = false;
     
     if (isEditing) {
         conta = contas.find(c => String(c.id || c.tempId) === String(editingId));
@@ -581,13 +557,6 @@ window.showFormModal = async function(editingId = null) {
             showMessage('Aguarde a sincronização completa para editar esta conta.', 'warning');
             return;
         }
-        if (conta.grupo_id) {
-            currentGrupoId = conta.grupo_id;
-            parcelasDoGrupo = await loadParcelasDoGrupo(conta.grupo_id);
-        } else {
-            currentGrupoId = null;
-            parcelasDoGrupo = [conta];
-        }
         if (conta.observacoes) {
             try {
                 observacoesArray = typeof conta.observacoes === 'string' ? JSON.parse(conta.observacoes) : conta.observacoes;
@@ -595,33 +564,27 @@ window.showFormModal = async function(editingId = null) {
         } else {
             observacoesArray = [];
         }
-        isPagamentoFixo = conta.pagamento_fixo || false;
     } else {
-        currentGrupoId = null;
-        parcelasDoGrupo = [];
         observacoesArray = [];
-        isPagamentoFixo = false;
     }
 
-    formType = isEditing ? 'edit' : 'simple';
-    numParcelas = 0;
+    const tituloModal = isEditing ? (conta?.descricao || 'Editar Conta') : 'Nome da Conta';
 
-    const temParcelas = isEditing && conta?.grupo_id && parcelasDoGrupo.length > 1;
-    
     const modalHTML = `
         <div class="modal-overlay" id="formModal">
             <div class="modal-content modal-large">
                 <button class="modal-close-x" onclick="window.closeFormModal()" title="Fechar">✕</button>
-                <div class="modal-header"><h3 class="modal-title">${isEditing ? 'Editar Conta' : 'Nova Conta'}</h3></div>
-                ${!isEditing ? `<div class="form-type-selector"><button type="button" class="form-type-btn active" onclick="window.selectFormType('simple')">Simples</button><button type="button" class="form-type-btn" onclick="window.selectFormType('parcelado')">Parcelado</button></div>` : ''}
+                <div class="modal-header"><h3 class="modal-title">${tituloModal}</h3></div>
                 <form id="contaForm" onsubmit="window.handleFormSubmit(event, ${isEditing})">
                     <input type="hidden" id="observacoesData" value='${JSON.stringify(observacoesArray)}'>
-                    ${isEditing ? `<input type="hidden" id="editId" value="${editingId}"><input type="hidden" id="grupoId" value="${currentGrupoId || ''}">` : ''}
+                    ${isEditing ? `<input type="hidden" id="editId" value="${editingId}">` : ''}
                     <div class="tabs-container">
                         <div class="tabs-nav">
-                            ${isEditing && temParcelas ? `<button type="button" class="tab-btn active" onclick="window.switchFormTab(0)">Dados Gerais</button>${parcelasDoGrupo.map((p, idx) => `<button type="button" class="tab-btn" onclick="window.switchFormTab(${idx + 1})">${p.parcela_numero}ª Parcela</button>`).join('')}<button type="button" class="tab-btn" onclick="window.switchFormTab(${parcelasDoGrupo.length + 1})">Observações</button>` : `<button type="button" class="tab-btn active" onclick="window.switchFormTab(0)">Dados</button><button type="button" class="tab-btn" onclick="window.switchFormTab(1)">Pagamento</button><button type="button" class="tab-btn" onclick="window.switchFormTab(2)">Observações</button>`}
+                            <button type="button" class="tab-btn active" onclick="window.switchFormTab(0)">Dados</button>
+                            <button type="button" class="tab-btn" onclick="window.switchFormTab(1)">Pagamento</button>
+                            <button type="button" class="tab-btn" onclick="window.switchFormTab(2)">Observações</button>
                         </div>
-                        ${isEditing && temParcelas ? renderEditFormComParcelas(conta) : renderEditFormSimples(conta, isEditing, isPagamentoFixo)}
+                        ${renderContaForm(conta)}
                     </div>
                     <div class="modal-actions">
                         <button type="submit" class="save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
@@ -638,46 +601,27 @@ window.showFormModal = async function(editingId = null) {
     setTimeout(() => { applyUppercaseFields(); }, 100);
 };
 
-function renderEditFormSimples(conta, isEditing, isPagamentoFixo) {
+function renderContaForm(conta) {
     const observacoesHTML = observacoesArray.length > 0 ? observacoesArray.map((obs, idx) => `<div class="observacao-item" data-index="${idx}"><div class="observacao-header"><span class="observacao-data">${new Date(obs.timestamp).toLocaleString('pt-BR')}</span><button type="button" class="btn-remove-obs" onclick="window.removerObservacao(${idx})" title="Remover">✕</button></div><p class="observacao-texto">${obs.texto}</p></div>`).join('') : '<p style="color: var(--text-secondary); font-style: italic; text-align: center; padding: 2rem;">Nenhuma observação registrada</p>';
-    
-    const pagamentoFixoChecked = isPagamentoFixo || (conta?.pagamento_fixo || false);
-    
+
     return `
         <div class="tab-content active" id="tab-dados">
             <div class="form-grid-compact">
+                <div class="form-row-descricao">
+                    <div class="form-group"><label for="descricao">Descrição *</label><input type="text" id="descricao" value="${conta?.descricao || ''}" required style="text-transform:uppercase;"></div>
+                    <div class="form-group"><label for="valor">Valor (R$) *</label><input type="number" id="valor" step="0.01" min="0" value="${conta?.valor || ''}" required></div>
+                    <div class="form-group"><label for="data_vencimento">Data de Vencimento *</label><input type="date" id="data_vencimento" value="${conta?.data_vencimento || ''}" required></div>
+                </div>
                 <div class="form-row">
-                    <div class="form-group form-group-full"><label for="descricao">Descrição *</label><input type="text" id="descricao" value="${conta?.descricao || ''}" required style="text-transform:uppercase;"></div>
-                </div>
-                <div id="formSimple" ${formType === 'parcelado' ? 'style="display:none"' : ''}>
-                    <div class="form-row">
-                        <div class="form-group"><label for="valor">Valor (R$) *</label><input type="number" id="valor" step="0.01" min="0" value="${conta?.valor || ''}" ${formType === 'simple' ? 'required' : ''}></div>
-                        <div class="form-group"><label for="data_vencimento">Data de Vencimento *</label><input type="date" id="data_vencimento" value="${conta?.data_vencimento || ''}" ${formType === 'simple' ? 'required' : ''}></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
-                            <label for="pagamentoFixo" style="margin-bottom:0;cursor:pointer;">Pagamento Fixo</label>
-                            <button type="button" id="pagamentoFixoBtn" class="pagamento-fixo-btn ${pagamentoFixoChecked ? 'active' : ''}" onclick="window.togglePagamentoFixo()" style="flex:1;padding:12px 16px;border:2px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:0.95rem;font-weight:500;cursor:pointer;transition:all 0.3s ease;text-align:center;">
-                                ${pagamentoFixoChecked ? '✅ Ativo' : 'Inativo'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div id="formParcelado" ${formType !== 'parcelado' ? 'style="display:none"' : ''}>
-                    <div class="form-row">
-                        <div class="form-group"><label for="numParcelas">Número de Parcelas *</label><input type="number" id="numParcelas" min="2" max="360" onchange="window.generateParcelas()"></div>
-                        <div class="form-group"><label for="valorTotal">Valor Total (R$) *</label><input type="number" id="valorTotal" step="0.01" min="0" onchange="window.generateParcelas()"></div>
-                        <div class="form-group"><label for="dataInicio">Data Início *</label><input type="date" id="dataInicio" onchange="window.generateParcelas()"></div>
-                    </div>
-                    <div id="parcelasContainer"></div>
+                    <div class="form-group"><label for="tipo_pessoa">Tipo</label><select id="tipo_pessoa"><option value="">Selecione...</option><option value="FISICA" ${conta?.tipo_pessoa === 'FISICA' ? 'selected' : ''}>Pessoa Física</option><option value="JURIDICA" ${conta?.tipo_pessoa === 'JURIDICA' ? 'selected' : ''}>Pessoa Jurídica</option></select></div>
                 </div>
             </div>
         </div>
         <div class="tab-content" id="tab-pagamento">
             <div class="form-grid-compact">
                 <div class="form-row">
-                    <div class="form-group"><label for="forma_pagamento">Forma de Pagamento *</label><select id="forma_pagamento" ${formType === 'simple' ? 'required' : ''}><option value="">Selecione...</option><option value="PIX" ${conta?.forma_pagamento === 'PIX' ? 'selected' : ''}>Pix</option><option value="BOLETO" ${conta?.forma_pagamento === 'BOLETO' ? 'selected' : ''}>Boleto</option><option value="CARTAO" ${conta?.forma_pagamento === 'CARTAO' ? 'selected' : ''}>Cartão</option><option value="DINHEIRO" ${conta?.forma_pagamento === 'DINHEIRO' ? 'selected' : ''}>Dinheiro</option><option value="TRANSFERENCIA" ${conta?.forma_pagamento === 'TRANSFERENCIA' ? 'selected' : ''}>Transferência</option></select></div>
-                    <div class="form-group"><label for="banco">Banco *</label><select id="banco" ${formType === 'simple' ? 'required' : ''}><option value="">Selecione...</option><option value="BANCO DO BRASIL" ${conta?.banco === 'BANCO DO BRASIL' ? 'selected' : ''}>Banco do Brasil</option><option value="BRADESCO" ${conta?.banco === 'BRADESCO' ? 'selected' : ''}>Bradesco</option><option value="SICOOB" ${conta?.banco === 'SICOOB' ? 'selected' : ''}>Sicoob</option></select></div>
+                    <div class="form-group"><label for="forma_pagamento">Forma de Pagamento *</label><select id="forma_pagamento" required><option value="">Selecione...</option><option value="PIX" ${conta?.forma_pagamento === 'PIX' ? 'selected' : ''}>Pix</option><option value="BOLETO" ${conta?.forma_pagamento === 'BOLETO' ? 'selected' : ''}>Boleto</option><option value="CARTAO" ${conta?.forma_pagamento === 'CARTAO' ? 'selected' : ''}>Cartão</option><option value="DINHEIRO" ${conta?.forma_pagamento === 'DINHEIRO' ? 'selected' : ''}>Dinheiro</option><option value="TRANSFERENCIA" ${conta?.forma_pagamento === 'TRANSFERENCIA' ? 'selected' : ''}>Transferência</option></select></div>
+                    <div class="form-group"><label for="banco">Banco *</label><select id="banco" required><option value="">Selecione...</option><option value="BANCO DO BRASIL" ${conta?.banco === 'BANCO DO BRASIL' ? 'selected' : ''}>Banco do Brasil</option><option value="BRADESCO" ${conta?.banco === 'BRADESCO' ? 'selected' : ''}>Bradesco</option><option value="SICOOB" ${conta?.banco === 'SICOOB' ? 'selected' : ''}>Sicoob</option></select></div>
                     <div class="form-group"><label for="data_pagamento">Data do Pagamento</label><input type="date" id="data_pagamento" value="${conta?.data_pagamento || ''}"></div>
                 </div>
             </div>
@@ -694,60 +638,6 @@ function renderEditFormSimples(conta, isEditing, isPagamentoFixo) {
         </div>
     `;
 }
-
-function renderEditFormComParcelas(conta) {
-    const observacoesHTML = observacoesArray.length > 0 ? observacoesArray.map((obs, idx) => `<div class="observacao-item" data-index="${idx}"><div class="observacao-header"><span class="observacao-data">${new Date(obs.timestamp).toLocaleString('pt-BR')}</span><button type="button" class="btn-remove-obs" onclick="window.removerObservacao(${idx})" title="Remover">✕</button></div><p class="observacao-texto">${obs.texto}</p></div>`).join('') : '<p style="color: var(--text-secondary); font-style: italic; text-align: center; padding: 2rem;">Nenhuma observação registrada</p>';
-    return `
-        <div class="tab-content active" id="tab-dados-gerais">
-            <div class="form-grid-compact">
-                <div class="form-row">
-                    <div class="form-group form-group-full"><label for="descricao">Descrição *</label><input type="text" id="descricao" value="${conta?.descricao || ''}" required style="text-transform:uppercase;"></div>
-                </div>
-            </div>
-        </div>
-        ${parcelasDoGrupo.map((parcela, idx) => `
-            <div class="tab-content" id="tab-parcela-${idx}">
-                <div class="form-grid-compact">
-                    <div class="form-row">
-                        <div class="form-group"><label>Forma de Pagamento *</label><select id="parcela_forma_pagamento_${parcela.id}" class="parcela-field" data-parcela-id="${parcela.id}" required><option value="">Selecione...</option><option value="PIX" ${parcela.forma_pagamento === 'PIX' ? 'selected' : ''}>Pix</option><option value="BOLETO" ${parcela.forma_pagamento === 'BOLETO' ? 'selected' : ''}>Boleto</option><option value="CARTAO" ${parcela.forma_pagamento === 'CARTAO' ? 'selected' : ''}>Cartão</option><option value="DINHEIRO" ${parcela.forma_pagamento === 'DINHEIRO' ? 'selected' : ''}>Dinheiro</option><option value="TRANSFERENCIA" ${parcela.forma_pagamento === 'TRANSFERENCIA' ? 'selected' : ''}>Transferência</option></select></div>
-                        <div class="form-group"><label>Banco *</label><select id="parcela_banco_${parcela.id}" class="parcela-field" data-parcela-id="${parcela.id}" required><option value="">Selecione...</option><option value="BANCO DO BRASIL" ${parcela.banco === 'BANCO DO BRASIL' ? 'selected' : ''}>Banco do Brasil</option><option value="BRADESCO" ${parcela.banco === 'BRADESCO' ? 'selected' : ''}>Bradesco</option><option value="SICOOB" ${parcela.banco === 'SICOOB' ? 'selected' : ''}>Sicoob</option></select></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Data de Vencimento *</label><input type="date" id="parcela_vencimento_${parcela.id}" class="parcela-field" value="${parcela.data_vencimento}" data-parcela-id="${parcela.id}" required></div>
-                        <div class="form-group"><label>Valor (R$) *</label><input type="number" id="parcela_valor_${parcela.id}" class="parcela-field" step="0.01" min="0" value="${parcela.valor}" data-parcela-id="${parcela.id}" required></div>
-                        <div class="form-group"><label>Data do Pagamento</label><input type="date" id="parcela_pagamento_${parcela.id}" class="parcela-field" value="${parcela.data_pagamento || ''}" data-parcela-id="${parcela.id}"></div>
-                    </div>
-                </div>
-            </div>
-        `).join('')}
-        <div class="tab-content" id="tab-observacoes-final">
-            <div class="observacoes-container">
-                <div class="observacoes-list" id="observacoesList">${observacoesHTML}</div>
-                <div class="nova-observacao">
-                    <label for="novaObservacao">Nova Observação</label>
-                    <textarea id="novaObservacao" placeholder="Digite sua observação aqui..." rows="3"></textarea>
-                    <button type="button" class="btn-add-obs" onclick="window.adicionarObservacao()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Adicionar Observação</button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-window.togglePagamentoFixo = function() {
-    const btn = document.getElementById('pagamentoFixoBtn');
-    if (!btn) return;
-    const isActive = btn.classList.toggle('active');
-    btn.textContent = isActive ? '✅ Ativo' : 'Inativo';
-    if (isActive) {
-        btn.style.borderColor = '#22C55E';
-        btn.style.background = 'rgba(34, 197, 94, 0.1)';
-        btn.style.color = '#22C55E';
-    } else {
-        btn.style.borderColor = 'var(--border-color)';
-        btn.style.background = 'var(--input-bg)';
-        btn.style.color = 'var(--text-primary)';
-    }
-};
 
 window.switchFormTab = function(index) {
     document.querySelectorAll('#formModal .tab-btn').forEach((btn, i) => { btn.classList.toggle('active', i === index); });
@@ -787,52 +677,6 @@ function atualizarListaObservacoes() {
     }
 }
 
-window.selectFormType = function(type) {
-    formType = type;
-    const buttons = document.querySelectorAll('.form-type-btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
-    const target = event.target;
-    if (target) target.classList.add('active');
-    const formSimple = document.getElementById('formSimple');
-    const formParcelado = document.getElementById('formParcelado');
-    if (type === 'simple') {
-        formSimple.style.display = 'block';
-        formParcelado.style.display = 'none';
-        document.getElementById('valor').required = true;
-        document.getElementById('data_vencimento').required = true;
-        document.getElementById('forma_pagamento').required = true;
-        document.getElementById('banco').required = true;
-    } else {
-        formSimple.style.display = 'none';
-        formParcelado.style.display = 'block';
-        document.getElementById('valor').required = false;
-        document.getElementById('data_vencimento').required = false;
-        document.getElementById('forma_pagamento').required = false;
-        document.getElementById('banco').required = false;
-    }
-};
-
-window.generateParcelas = function() {
-    const numParcelasInput = document.getElementById('numParcelas');
-    const valorTotalInput = document.getElementById('valorTotal');
-    const dataInicioInput = document.getElementById('dataInicio');
-    const container = document.getElementById('parcelasContainer');
-    const numParcelas = parseInt(numParcelasInput?.value);
-    const valorTotal = parseFloat(valorTotalInput?.value);
-    const dataInicio = dataInicioInput?.value;
-    if (!numParcelas || !valorTotal || !dataInicio || numParcelas < 2) { container.innerHTML = ''; return; }
-    const valorParcela = (valorTotal / numParcelas).toFixed(2);
-    const dataBase = new Date(dataInicio + 'T00:00:00');
-    let html = '<div class="parcelas-preview"><h4>Parcelas Geradas:</h4>';
-    for (let i = 0; i < numParcelas; i++) {
-        const dataVenc = new Date(dataBase);
-        dataVenc.setMonth(dataVenc.getMonth() + i);
-        html += `<div class="parcela-item"><span class="parcela-numero">${i + 1}ª Parcela</span><span class="parcela-data">${formatDate(dataVenc.toISOString().split('T')[0])}</span><span class="parcela-valor">R$ ${parseFloat(valorParcela).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>`;
-    }
-    html += '</div>';
-    container.innerHTML = html;
-};
-
 window.handleFormSubmit = function(event, isEditing) {
     event.preventDefault();
     if (isEditing) { handleEditSubmit(event); } else { handleCreateSubmit(event); }
@@ -841,13 +685,13 @@ window.handleFormSubmit = function(event, isEditing) {
 
 async function handleCreateSubmit(event) {
     event.preventDefault();
-    if (formType === 'parcelado') { await salvarContaParcelada(); } else { await salvarContaOtimista(); }
+    await salvarContaOtimista();
 }
 
 async function handleEditSubmit(event) {
     event.preventDefault();
-    const temParcelas = parcelasDoGrupo.length > 1;
-    if (temParcelas) { await handleEditSubmitParcelas(); } else { const editId = document.getElementById('editId').value; await editarContaOtimista(editId); }
+    const editId = document.getElementById('editId').value;
+    await editarContaOtimista(editId);
 }
 
 async function salvarContaOtimista() {
@@ -856,8 +700,7 @@ async function salvarContaOtimista() {
     const dataVencimento = document.getElementById('data_vencimento')?.value;
     const formaPagamento = document.getElementById('forma_pagamento')?.value;
     const banco = document.getElementById('banco')?.value;
-    const pagamentoFixoBtn = document.getElementById('pagamentoFixoBtn');
-    const isPagamentoFixo = pagamentoFixoBtn ? pagamentoFixoBtn.classList.contains('active') : false;
+    const tipoPessoa = document.getElementById('tipo_pessoa')?.value || null;
     
     if (!descricao || !valor || !dataVencimento || !formaPagamento || !banco) { showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); return; }
     
@@ -867,10 +710,10 @@ async function salvarContaOtimista() {
         data_vencimento: dataVencimento,
         forma_pagamento: formaPagamento,
         banco: banco,
+        tipo_pessoa: tipoPessoa,
         data_pagamento: document.getElementById('data_pagamento')?.value || null,
         observacoes: document.getElementById('observacoesData')?.value || '[]',
-        status: document.getElementById('data_pagamento')?.value ? 'PAGO' : 'PENDENTE',
-        pagamento_fixo: isPagamentoFixo
+        status: document.getElementById('data_pagamento')?.value ? 'PAGO' : 'PENDENTE'
     };
     if (isNaN(formData.valor) || formData.valor <= 0) { showMessage('Valor inválido. Digite um número maior que zero.', 'error'); return; }
     
@@ -888,51 +731,13 @@ async function salvarContaOtimista() {
     processQueue();
 }
 
-async function salvarContaParcelada() {
-    const descricao = document.getElementById('descricao')?.value?.trim();
-    const numParcelas = parseInt(document.getElementById('numParcelas')?.value);
-    const valorTotal = parseFloat(document.getElementById('valorTotal')?.value);
-    const dataInicio = document.getElementById('dataInicio')?.value;
-    const formaPagamento = document.getElementById('forma_pagamento')?.value;
-    const banco = document.getElementById('banco')?.value;
-    const observacoesData = document.getElementById('observacoesData')?.value || '[]';
-    if (!descricao || !numParcelas || !valorTotal || !dataInicio || !formaPagamento || !banco) { showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); return; }
-    if (isNaN(valorTotal) || valorTotal <= 0) { showMessage('Valor total inválido.', 'error'); return; }
-    if (numParcelas < 2 || numParcelas > 360) { showMessage('Número de parcelas deve ser entre 2 e 360.', 'error'); return; }
-    const valorParcela = (valorTotal / numParcelas).toFixed(2);
-    const dataBase = new Date(dataInicio + 'T00:00:00');
-    const grupoId = generateUUID();
-    const parcelas = [];
-    for (let i = 0; i < numParcelas; i++) {
-        const dataVenc = new Date(dataBase);
-        dataVenc.setMonth(dataVenc.getMonth() + i);
-        parcelas.push({ descricao, observacoes: observacoesData, valor: parseFloat(valorParcela), data_vencimento: dataVenc.toISOString().split('T')[0], data_pagamento: null, forma_pagamento: formaPagamento, banco, status: 'PENDENTE', parcela_numero: i + 1, parcela_total: numParcelas, grupo_id: grupoId, pagamento_fixo: false });
-    }
-    const tempIds = [];
-    for (const parcela of parcelas) {
-        const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        tempIds.push(tempId);
-        contas.push({ ...parcela, id: null, tempId, synced: false });
-    }
-    lastDataHash = JSON.stringify(contas.map(c => c.id || c.tempId));
-    updateAllFilters();
-    updateDashboard();
-    filterContas();
-    window.closeFormModal();
-    showMessage(`${numParcelas} parcelas registradas localmente`, 'success');
-    if (!isOnline) { showMessage('Sistema offline. As parcelas serão sincronizadas quando voltar online.', 'warning'); return; }
-    for (let i = 0; i < parcelas.length; i++) { addToQueue({ tempId: tempIds[i], data: parcelas[i] }); }
-    processQueue();
-}
-
 async function editarContaOtimista(editId) {
     const descricao = document.getElementById('descricao')?.value?.trim();
     const valor = document.getElementById('valor')?.value;
     const dataVencimento = document.getElementById('data_vencimento')?.value;
     const formaPagamento = document.getElementById('forma_pagamento')?.value;
     const banco = document.getElementById('banco')?.value;
-    const pagamentoFixoBtn = document.getElementById('pagamentoFixoBtn');
-    const isPagamentoFixo = pagamentoFixoBtn ? pagamentoFixoBtn.classList.contains('active') : false;
+    const tipoPessoa = document.getElementById('tipo_pessoa')?.value || null;
     
     if (!descricao || !valor || !dataVencimento || !formaPagamento || !banco) { showMessage('Por favor, preencha todos os campos obrigatórios.', 'error'); return; }
     const formData = {
@@ -941,15 +746,13 @@ async function editarContaOtimista(editId) {
         data_vencimento: dataVencimento,
         forma_pagamento: formaPagamento,
         banco: banco,
+        tipo_pessoa: tipoPessoa,
         data_pagamento: document.getElementById('data_pagamento')?.value || null,
-        observacoes: document.getElementById('observacoesData')?.value || '[]',
-        pagamento_fixo: isPagamentoFixo
+        observacoes: document.getElementById('observacoesData')?.value || '[]'
     };
     if (isNaN(formData.valor) || formData.valor <= 0) { showMessage('Valor inválido. Digite um número maior que zero.', 'error'); return; }
     const contaOriginal = contas.find(c => String(c.id) === String(editId));
     if (!contaOriginal) { showMessage('Conta não encontrada!', 'error'); return; }
-    formData.parcela_numero = contaOriginal.parcela_numero;
-    formData.parcela_total = contaOriginal.parcela_total;
     if (!formData.data_pagamento) { formData.status = contaOriginal.status; } else { formData.status = 'PAGO'; }
     if (!isOnline) { showMessage('Sistema offline. Dados não foram salvos.', 'error'); window.closeFormModal(); return; }
     const backup = { ...contaOriginal };
@@ -972,63 +775,6 @@ async function editarContaOtimista(editId) {
         updateDashboard();
         filterContas();
     } catch (error) { console.error('Erro ao sincronizar:', error); contas[index] = backup; updateDashboard(); filterContas(); showMessage(`Erro ao sincronizar: ${error.message}`, 'error'); }
-}
-
-async function handleEditSubmitParcelas() {
-    const descricao = document.getElementById('descricao')?.value?.trim();
-    const observacoes = document.getElementById('observacoesData')?.value || '[]';
-    if (!descricao) { showMessage('Por favor, preencha a descrição.', 'error'); return; }
-    const dadosComuns = { descricao, observacoes };
-    if (!isOnline) { showMessage('Sistema offline. Dados não foram salvos.', 'error'); window.closeFormModal(); return; }
-    const atualizacoes = [];
-    const backupOriginal = [];
-    for (const parcela of parcelasDoGrupo) {
-        if (parcela.isNew) continue;
-        const vencInput = document.getElementById(`parcela_vencimento_${parcela.id}`);
-        const valorInput = document.getElementById(`parcela_valor_${parcela.id}`);
-        const pagInput = document.getElementById(`parcela_pagamento_${parcela.id}`);
-        const formaPagInput = document.getElementById(`parcela_forma_pagamento_${parcela.id}`);
-        const bancoInput = document.getElementById(`parcela_banco_${parcela.id}`);
-        if (!vencInput || !valorInput || !formaPagInput || !bancoInput) continue;
-        const index = contas.findIndex(c => String(c.id) === String(parcela.id));
-        if (index !== -1) {
-            backupOriginal.push({ index, data: { ...contas[index] } });
-            contas[index] = { ...contas[index], ...dadosComuns, valor: parseFloat(valorInput.value), data_vencimento: vencInput.value, data_pagamento: pagInput?.value || null, forma_pagamento: formaPagInput.value, banco: bancoInput.value, status: pagInput?.value ? 'PAGO' : 'PENDENTE', parcela_numero: parcela.parcela_numero, parcela_total: parcelasDoGrupo.filter(p => !p.isNew).length, synced: false };
-            atualizacoes.push({ id: parcela.id, data: { ...dadosComuns, valor: parseFloat(valorInput.value), data_vencimento: vencInput.value, data_pagamento: pagInput?.value || null, forma_pagamento: formaPagInput.value, banco: bancoInput.value, status: pagInput?.value ? 'PAGO' : 'PENDENTE', parcela_numero: parcela.parcela_numero, parcela_total: parcelasDoGrupo.filter(p => !p.isNew).length } });
-        }
-    }
-    lastDataHash = JSON.stringify(contas.map(c => c.id || c.tempId));
-    updateAllFilters();
-    updateDashboard();
-    filterContas();
-    window.closeFormModal();
-    showMessage('Registro atualizado', 'success');
-    await processEditQueue(atualizacoes, backupOriginal, parcelasDoGrupo.length);
-}
-
-async function processEditQueue(atualizacoes, backupOriginal, totalParcelas) {
-    const BATCH_SIZE = 5;
-    let sucessos = 0;
-    let erros = [];
-    for (let i = 0; i < atualizacoes.length; i += BATCH_SIZE) {
-        const batch = atualizacoes.slice(i, i + BATCH_SIZE);
-        const results = await Promise.allSettled(batch.map(async (item) => {
-            const response = await fetch(`${API_URL}/contas/${item.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken, 'Accept': 'application/json' }, body: JSON.stringify(item.data), mode: 'cors' });
-            if (!response.ok) throw new Error(`Erro ${response.status}`);
-            const savedData = await response.json();
-            const index = contas.findIndex(c => String(c.id) === String(item.id));
-            if (index !== -1) contas[index] = savedData;
-            return { success: true, id: item.id };
-        }));
-        results.forEach((result, idx) => {
-            if (result.status === 'fulfilled') { sucessos++; } else { const item = batch[idx]; erros.push(`Parcela ${item.data.parcela_numero}: ${result.reason.message}`); const backup = backupOriginal.find(b => contas[b.index]?.id === item.id); if (backup) contas[backup.index] = backup.data; }
-        });
-    }
-    lastDataHash = JSON.stringify(contas.map(c => c.id));
-    updateAllFilters();
-    updateDashboard();
-    filterContas();
-    if (erros.length > 0) showMessage(`${sucessos} de ${atualizacoes.length} parcelas atualizadas. Erros: ${erros.join('; ')}`, 'warning');
 }
 
 window.closeFormModal = function() {
@@ -1120,6 +866,75 @@ window.deleteConta = async function(id) {
 };
 
 // ============================================
+// REPETIR CONTA
+// ============================================
+window.abrirRepetirModal = function(id) {
+    const idStr = String(id);
+    const conta = contas.find(c => String(c.id || c.tempId) === idStr);
+    if (!conta) { showMessage('Conta não encontrada!', 'error'); return; }
+    if (idStr.startsWith('temp_')) { showMessage('Aguarde a sincronização para repetir esta conta.', 'warning'); return; }
+
+    contaParaRepetir = conta;
+    mesesSelecionadosRepetir = new Set();
+    calendarMode = 'repeat';
+    calendarYear = currentMonth.getFullYear();
+
+    if (typeof renderCalendar === 'function') renderCalendar();
+    const modal = document.getElementById('calendarModal');
+    const actions = document.getElementById('calendarActions');
+    if (actions) actions.style.display = 'flex';
+    if (modal) modal.classList.add('show');
+};
+
+window.confirmarRepeticao = function() {
+    if (!contaParaRepetir || mesesSelecionadosRepetir.size === 0) {
+        showMessage('Selecione ao menos um mês para repetir.', 'warning');
+        return;
+    }
+    const original = contaParaRepetir;
+    const diaOriginal = new Date(original.data_vencimento + 'T00:00:00').getDate();
+    const novasContas = [];
+
+    mesesSelecionadosRepetir.forEach(key => {
+        const [anoStr, mesStr] = key.split('-');
+        const ano = parseInt(anoStr);
+        const mes = parseInt(mesStr);
+        const ultimoDiaMes = new Date(ano, mes + 1, 0).getDate();
+        const dia = Math.min(diaOriginal, ultimoDiaMes);
+        const dataVenc = new Date(ano, mes, dia);
+        const dataVencStr = dataVenc.toISOString().split('T')[0];
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const novaConta = {
+            descricao: original.descricao,
+            valor: parseFloat(original.valor),
+            data_vencimento: dataVencStr,
+            forma_pagamento: original.forma_pagamento,
+            banco: original.banco,
+            tipo_pessoa: original.tipo_pessoa || null,
+            data_pagamento: null,
+            observacoes: '[]',
+            status: 'PENDENTE',
+            id: null,
+            tempId: tempId,
+            synced: false
+        };
+        novasContas.push({ tempId, formData: novaConta });
+        contas.push(novaConta);
+    });
+
+    lastDataHash = JSON.stringify(contas.map(c => c.id || c.tempId));
+    updateAllFilters();
+    updateDashboard();
+    filterContas();
+    showMessage(`${novasContas.length} repetição(ões) registrada(s) localmente`, 'success');
+    window.cancelarRepeticao();
+
+    if (!isOnline) { showMessage('Sistema offline. As repetições serão sincronizadas quando voltar online.', 'warning'); return; }
+    novasContas.forEach(item => addToQueue({ tempId: item.tempId, data: item.formData }));
+    processQueue();
+};
+
+// ============================================
 // VISUALIZAÇÃO (modal com abas)
 // ============================================
 window.viewConta = function(id, activeTab = 'dados') {
@@ -1127,18 +942,17 @@ window.viewConta = function(id, activeTab = 'dados') {
     const conta = contas.find(c => String(c.id || c.tempId) === idStr);
     if (!conta) { showMessage('Conta não encontrada!', 'error'); return; }
 
-    const parcelaInfo = conta.parcela_numero && conta.parcela_total ? `<div class="info-item"><span class="info-label">Parcela:</span><span class="info-value">${conta.parcela_numero}ª de ${conta.parcela_total}</span></div>` : '';
+    const tipoPessoaLabel = conta.tipo_pessoa === 'FISICA' ? 'Pessoa Física' : (conta.tipo_pessoa === 'JURIDICA' ? 'Pessoa Jurídica' : '-');
 
     const dadosHTML = `
         <div class="info-grid">
             <div class="info-item info-item-full"><span class="info-label">Descrição:</span><span class="info-value">${conta.descricao}</span></div>
-            ${parcelaInfo}
             <div class="info-item"><span class="info-label">Valor:</span><span class="info-value info-highlight">R$ ${parseFloat(conta.valor).toFixed(2)}</span></div>
             <div class="info-item"><span class="info-label">Vencimento:</span><span class="info-value">${formatDate(conta.data_vencimento)}</span></div>
             <div class="info-item"><span class="info-label">Forma de Pagamento:</span><span class="info-value">${conta.forma_pagamento}</span></div>
             <div class="info-item"><span class="info-label">Banco:</span><span class="info-value">${conta.banco}</span></div>
             <div class="info-item"><span class="info-label">${conta.data_pagamento ? 'Data do Pagamento:' : 'Status:'}</span><span class="info-value">${conta.data_pagamento ? formatDate(conta.data_pagamento) : 'Não pago'}</span></div>
-            <div class="info-item"><span class="info-label">Pagamento Fixo:</span><span class="info-value">${conta.pagamento_fixo ? '✅ Sim' : '❌ Não'}</span></div>
+            <div class="info-item"><span class="info-label">Tipo:</span><span class="info-value">${tipoPessoaLabel}</span></div>
         </div>
     `;
 
@@ -1178,7 +992,7 @@ window.viewConta = function(id, activeTab = 'dados') {
             <div class="modal-content modal-view">
                 <button class="modal-close-x" onclick="window.closeViewModal()" title="Fechar">✕</button>
                 <div class="modal-header">
-                    <h3 class="modal-title">Detalhes da Conta</h3>
+                    <h3 class="modal-title">${conta.descricao}</h3>
                 </div>
                 <div class="tabs-container">
                     <div class="tabs-nav">
@@ -1265,7 +1079,6 @@ function renderContas(lista) {
                 <th>Descrição</th>
                 <th>Valor</th>
                 <th>Vencimento</th>
-                <th style="text-align:center;">Nº Parcelas</th>
                 <th>Banco</th>
                 <th>Forma de PG</th>
                 <th>Data Pagamento</th>
@@ -1275,7 +1088,6 @@ function renderContas(lista) {
         </thead>
         <tbody>
             ${lista.map(c => { 
-                const numParcelas = c.parcela_numero && c.parcela_total ? `${c.parcela_numero}/${c.parcela_total}` : '-'; 
                 const syncIndicator = (!c.id && c.tempId) ? '<span style="color:orange;font-size:0.8em;" title="Sincronizando...">⟳</span> ' : ''; 
                 const isPago = c.status === 'PAGO'; 
                 const contaId = c.id || c.tempId;
@@ -1299,18 +1111,19 @@ function renderContas(lista) {
                     : '';
 
                 const formaPagamentoDisplay = c.forma_pagamento || '-';
+                const podeRepetir = c.id && !String(contaId).startsWith('temp_');
 
                 return `<tr data-conta-id="${contaId}" class="${isPago ? 'row-pago' : ''}">
                     <td style="text-align:center;padding:8px;"><button class="check-btn ${isPago ? 'checked' : ''}" data-action="toggle" data-id="${contaId}"></button></td>
                     <td>${syncIndicator}${c.descricao}</td>
                     <td><strong>R$ ${parseFloat(c.valor).toFixed(2)}</strong></td>
                     <td style="white-space:nowrap;">${formatDate(c.data_vencimento)}</td>
-                    <td style="text-align:center;">${numParcelas}</td>
                     <td>${c.banco || '-'}</td>
                     <td>${formaPagamentoDisplay}</td>
                     <td style="white-space:nowrap;">${c.data_pagamento ? formatDate(c.data_pagamento) : '-'}</td>
                     <td style="text-align:center;">${alertIcon}</td>
                     <td class="actions-cell">
+                        ${podeRepetir ? `<button class="action-btn repeat" data-action="repeat" data-id="${contaId}">Repetir</button>` : ''}
                         <button class="action-btn edit" data-action="edit" data-id="${contaId}">Editar</button>
                         <button class="action-btn delete" data-action="delete" data-id="${contaId}">Excluir</button>
                     </td>
